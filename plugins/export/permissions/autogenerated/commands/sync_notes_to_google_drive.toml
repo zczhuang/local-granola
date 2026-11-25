@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-sync-notes-to-google-drive"
+description = "Enables the sync_notes_to_google_drive command without any pre-configured scope."
+commands.allow = ["sync_notes_to_google_drive"]
+
+[[permission]]
+identifier = "deny-sync-notes-to-google-drive"
+description = "Denies the sync_notes_to_google_drive command without any pre-configured scope."
+commands.deny = ["sync_notes_to_google_drive"]

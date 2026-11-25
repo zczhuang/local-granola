@@ -12,11 +12,28 @@ tauri-plugin = { workspace = true, features = ["build"] }
 
 [dev-dependencies]
 specta-typescript = { workspace = true }
-tokio = { workspace = true, features = ["macros"] }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+wiremock = { workspace = true }
 
 [dependencies]
 tauri = { workspace = true, features = ["test"] }
+tauri-plugin-db = { workspace = true }
 tauri-specta = { workspace = true, features = ["derive", "typescript"] }
 
+anlg-agent-access = { workspace = true }
 anlg-export-core = { workspace = true }
+base64 = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+open = { workspace = true }
+reqwest = { workspace = true, features = ["json", "form"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
 specta = { workspace = true }
+sqlx = { workspace = true, features = ["sqlite"] }
+tokio = { workspace = true, features = ["net", "io-util", "time"] }
+tracing = { workspace = true }
+url = { workspace = true }
+urlencoding = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }

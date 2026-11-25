@@ -29,6 +29,7 @@ import {
 
 import { privacyMessages } from "~/settings/general/app-settings";
 import { useMyWorkspacesWithMirror } from "~/settings/team/mirror";
+import { LOCAL_ONLY } from "~/shared/local-only";
 import { type SettingsTab, type TabInput } from "~/store/zustand/tabs";
 
 type SettingsNavItem =
@@ -120,12 +121,13 @@ export function useSettingsNavGroups(): SettingsNavGroup[] {
           label: t`Sync`,
           icon: ArrowsClockwise,
           searchTerms: [
+            t`Google Drive`,
             t`Cloud sync`,
             t`Devices`,
             t`Sync now`,
             t`Use recovery key instead`,
           ],
-          requiresPro: true,
+          requiresPro: !LOCAL_ONLY,
         },
         {
           id: "appearance",

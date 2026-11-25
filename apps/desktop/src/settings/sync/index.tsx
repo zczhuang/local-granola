@@ -36,6 +36,7 @@ import { toast } from "@anlg/ui/components/ui/toast";
 import { cn, formatDistanceToNow } from "@anlg/utils";
 
 import { E2eeSetupDialog } from "../general/e2ee-setup";
+import { GoogleDriveSyncSettings } from "./google-drive";
 import { SyncHealthSection } from "./health";
 import { SyncLog } from "./log";
 
@@ -68,6 +69,7 @@ import {
 } from "~/settings/queries";
 import { resolveConfigValue } from "~/shared/config";
 import { isKeychainAccessError, repairKeychainAccess } from "~/shared/keychain";
+import { LOCAL_ONLY } from "~/shared/local-only";
 import { buildWebAppUrl } from "~/shared/utils";
 import { useTabs } from "~/store/zustand/tabs";
 
@@ -285,6 +287,14 @@ function SyncSettingsPreview() {
 }
 
 export function SettingsSync() {
+  if (LOCAL_ONLY) {
+    return <GoogleDriveSyncSettings />;
+  }
+
+  return <CloudSettingsSync />;
+}
+
+function CloudSettingsSync() {
   const [connectLibraryOpen, setConnectLibraryOpen] = useState(false);
   const { t } = useLingui();
   const auth = useAuth();

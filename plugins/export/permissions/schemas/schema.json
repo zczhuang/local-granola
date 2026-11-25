@@ -295,6 +295,30 @@
       "type": "string",
       "oneOf": [
         {
+          "description": "Enables the connect_google_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-connect-google-drive",
+          "markdownDescription": "Enables the connect_google_drive command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the connect_google_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-connect-google-drive",
+          "markdownDescription": "Denies the connect_google_drive command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the disconnect_google_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-disconnect-google-drive",
+          "markdownDescription": "Enables the disconnect_google_drive command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the disconnect_google_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-disconnect-google-drive",
+          "markdownDescription": "Denies the disconnect_google_drive command without any pre-configured scope."
+        },
+        {
           "description": "Enables the export command without any pre-configured scope.",
           "type": "string",
           "const": "allow-export",
@@ -307,10 +331,58 @@
           "markdownDescription": "Denies the export command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-export`",
+          "description": "Enables the get_google_drive_sync_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-google-drive-sync-status",
+          "markdownDescription": "Enables the get_google_drive_sync_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_google_drive_sync_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-google-drive-sync-status",
+          "markdownDescription": "Denies the get_google_drive_sync_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the save_google_drive_credentials command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-save-google-drive-credentials",
+          "markdownDescription": "Enables the save_google_drive_credentials command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the save_google_drive_credentials command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-save-google-drive-credentials",
+          "markdownDescription": "Denies the save_google_drive_credentials command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the sync_notes_to_google_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-sync-notes-to-google-drive",
+          "markdownDescription": "Enables the sync_notes_to_google_drive command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the sync_notes_to_google_drive command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-sync-notes-to-google-drive",
+          "markdownDescription": "Denies the sync_notes_to_google_drive command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the update_google_drive_sync_config command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-google-drive-sync-config",
+          "markdownDescription": "Enables the update_google_drive_sync_config command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_google_drive_sync_config command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-google-drive-sync-config",
+          "markdownDescription": "Denies the update_google_drive_sync_config command without any pre-configured scope."
+        },
+        {
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-export`\n- `allow-get-google-drive-sync-status`\n- `allow-save-google-drive-credentials`\n- `allow-connect-google-drive`\n- `allow-disconnect-google-drive`\n- `allow-update-google-drive-sync-config`\n- `allow-sync-notes-to-google-drive`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-export`"
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-export`\n- `allow-get-google-drive-sync-status`\n- `allow-save-google-drive-credentials`\n- `allow-connect-google-drive`\n- `allow-disconnect-google-drive`\n- `allow-update-google-drive-sync-config`\n- `allow-sync-notes-to-google-drive`"
         }
       ]
     }

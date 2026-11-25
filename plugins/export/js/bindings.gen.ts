@@ -13,6 +13,54 @@ async export(path: string, input: ExportInput) : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async getGoogleDriveSyncStatus() : Promise<Result<GoogleDriveSyncStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:export|get_google_drive_sync_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async saveGoogleDriveCredentials(clientIdOrJson: string, clientSecret: string | null) : Promise<Result<GoogleDriveSyncStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:export|save_google_drive_credentials", { clientIdOrJson, clientSecret }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async connectGoogleDrive() : Promise<Result<GoogleDriveSyncStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:export|connect_google_drive") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async disconnectGoogleDrive() : Promise<Result<GoogleDriveSyncStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:export|disconnect_google_drive") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateGoogleDriveSyncConfig(config: GoogleDriveSyncConfig) : Promise<Result<GoogleDriveSyncStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:export|update_google_drive_sync_config", { config }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async syncNotesToGoogleDrive(sessionId: string | null) : Promise<Result<GoogleDriveSyncReport, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:export|sync_notes_to_google_drive", { sessionId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -28,6 +76,10 @@ async export(path: string, input: ExportInput) : Promise<Result<null, string>> {
 
 export type ExportInput = { enhancedMd: string; memoMd: string | null; transcript: Transcript | null; metadata: ExportMetadata | null }
 export type ExportMetadata = { title: string; createdAt: string; participants: string[]; eventTitle: string | null; duration: string | null }
+export type GoogleDriveSyncConfig = { folderName: string; format: GoogleDriveSyncFormat; includeTranscript: boolean; autoSync: boolean }
+export type GoogleDriveSyncFormat = "google_doc" | "markdown"
+export type GoogleDriveSyncReport = { uploaded: number; updated: number; skipped: number; failed: number; totalSynced: number; folderUrl: string | null; syncedAtMs: number; errors: string[] }
+export type GoogleDriveSyncStatus = { configured: boolean; credentialsSource: string; clientIdHint: string | null; connected: boolean; email: string | null; rootFolderId: string | null; rootFolderUrl: string | null; syncedCount: number; lastSyncedAtMs: number | null; lastError: string | null; config: GoogleDriveSyncConfig }
 export type Transcript = { items: TranscriptItem[] }
 export type TranscriptItem = { speaker: string | null; text: string }
 

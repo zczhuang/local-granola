@@ -996,6 +996,7 @@ msgid "Busy"
 msgstr ""
 
 #: src/settings/general/permissions.tsx
+#: src/sidebar/icon-bar.tsx
 #: src/sidebar/settings-nav-groups.ts
 msgid "Calendar"
 msgstr ""
@@ -1719,6 +1720,7 @@ msgstr ""
 msgid "Contact options"
 msgstr ""
 
+#: src/sidebar/icon-bar.tsx
 #: src/sidebar/settings-nav-groups.ts
 msgid "Contacts"
 msgstr ""
@@ -2755,6 +2757,10 @@ msgstr ""
 msgid "Finish in your browser, then return to Anarlog."
 msgstr ""
 
+#: src/session/components/outer-header/index.tsx
+msgid "Finish meeting and summarize"
+msgstr ""
+
 #: src/settings/general/account.tsx
 msgid "Finish sign-in"
 msgstr ""
@@ -2810,6 +2816,7 @@ msgstr ""
 msgid "Folder: {currentPath}"
 msgstr ""
 
+#: src/sidebar/icon-bar.tsx
 #: src/sidebar/settings-nav-groups.ts
 msgid "Folders"
 msgstr ""
@@ -2932,6 +2939,10 @@ msgstr ""
 
 #: src/settings/automations/google-drive-config.tsx
 msgid "Google Docs"
+msgstr ""
+
+#: src/sidebar/settings-nav-groups.ts
+msgid "Google Drive"
 msgstr ""
 
 #: src/settings/automations/google-drive-config.tsx
@@ -4268,6 +4279,7 @@ msgstr ""
 
 #: src/contacts/details.tsx
 #: src/settings/general/account-profile.tsx
+#: src/sidebar/icon-bar.tsx
 msgid "Notes"
 msgstr ""
 
@@ -4563,12 +4575,17 @@ msgstr ""
 msgid "Paste the localhost redirect URL"
 msgstr ""
 
+#: src/session/components/outer-header/index.tsx
 #: src/settings/developers/webhooks.tsx
 msgid "Pause"
 msgstr ""
 
 #: src/settings/general/notification.tsx
 msgid "Pause alerts while Do Not Disturb is on."
+msgstr ""
+
+#: src/session/components/outer-header/index.tsx
+msgid "Pause listening"
 msgstr ""
 
 #: src/settings/developers/webhooks.tsx
@@ -5210,6 +5227,10 @@ msgstr ""
 msgid "Resume"
 msgstr ""
 
+#: src/session/components/outer-header/index.tsx
+msgid "Resume listening"
+msgstr ""
+
 #: src/settings/team/index.tsx
 msgid "Retention (days)"
 msgstr ""
@@ -5589,6 +5610,7 @@ msgstr ""
 #: src/main/empty.tsx
 #: src/main/windows-title-bar.tsx
 #: src/shared/open-note-dialog.tsx
+#: src/sidebar/icon-bar.tsx
 #: src/sidebar/toast/registry.tsx
 msgid "Settings"
 msgstr ""
@@ -6408,6 +6430,7 @@ msgstr ""
 msgid "Template content with Jinja2: {{ variable }}, {% if condition %}"
 msgstr ""
 
+#: src/sidebar/icon-bar.tsx
 #: src/sidebar/settings-nav-groups.ts
 msgid "Templates"
 msgstr ""
@@ -7138,6 +7161,10 @@ msgstr ""
 
 #: src/settings/team/index.tsx
 msgid "Workspace name"
+msgstr ""
+
+#: src/sidebar/icon-bar.tsx
+msgid "Workspace navigation"
 msgstr ""
 
 #: src/settings/team/index.tsx

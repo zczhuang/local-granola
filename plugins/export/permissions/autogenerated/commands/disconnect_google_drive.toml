@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-disconnect-google-drive"
+description = "Enables the disconnect_google_drive command without any pre-configured scope."
+commands.allow = ["disconnect_google_drive"]
+
+[[permission]]
+identifier = "deny-disconnect-google-drive"
+description = "Denies the disconnect_google_drive command without any pre-configured scope."
+commands.deny = ["disconnect_google_drive"]

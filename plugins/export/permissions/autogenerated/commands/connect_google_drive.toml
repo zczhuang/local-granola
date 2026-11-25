@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-connect-google-drive"
+description = "Enables the connect_google_drive command without any pre-configured scope."
+commands.allow = ["connect_google_drive"]
+
+[[permission]]
+identifier = "deny-connect-google-drive"
+description = "Denies the connect_google_drive command without any pre-configured scope."
+commands.deny = ["connect_google_drive"]

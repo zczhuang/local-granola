@@ -1,10 +1,14 @@
 mod commands;
 mod ext;
+pub mod google_drive;
 mod manifest;
 pub use anlg_export_core::{
     Error, ExportInput, ExportMetadata, Result, Transcript, TranscriptItem,
 };
 pub use ext::*;
+pub use google_drive::{
+    GoogleDriveSyncConfig, GoogleDriveSyncFormat, GoogleDriveSyncReport, GoogleDriveSyncStatus,
+};
 
 const PLUGIN_NAME: &str = "export";
 
@@ -13,6 +17,12 @@ fn make_specta_builder<R: tauri::Runtime>() -> tauri_specta::Builder<R> {
         .plugin_name(PLUGIN_NAME)
         .commands(tauri_specta::collect_commands![
             commands::export::<tauri::Wry>,
+            commands::get_google_drive_sync_status::<tauri::Wry>,
+            commands::save_google_drive_credentials::<tauri::Wry>,
+            commands::connect_google_drive::<tauri::Wry>,
+            commands::disconnect_google_drive::<tauri::Wry>,
+            commands::update_google_drive_sync_config::<tauri::Wry>,
+            commands::sync_notes_to_google_drive::<tauri::Wry>,
         ])
         .error_handling(tauri_specta::ErrorHandlingMode::Result)
 }
