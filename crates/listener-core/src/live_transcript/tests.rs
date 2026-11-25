@@ -1094,7 +1094,11 @@ fn final_text_of(engine: &mut LiveTranscriptEngine, response: &StreamResponse) -
         .transcript_delta
         .new_words
         .iter()
-        .chain(flush.iter().flat_map(|u| u.transcript_delta.new_words.iter()))
+        .chain(
+            flush
+                .iter()
+                .flat_map(|u| u.transcript_delta.new_words.iter()),
+        )
         .map(|word| word.text.as_str())
         .collect::<String>()
         .trim()
@@ -1113,7 +1117,10 @@ fn soniqo_engine_applies_session_vocabulary_to_final_words() {
     );
     let terms = vec!["Anarlog".to_string()];
 
-    let plain = final_text_of(&mut LiveTranscriptEngine::new("soniqo", &[], None), &response);
+    let plain = final_text_of(
+        &mut LiveTranscriptEngine::new("soniqo", &[], None),
+        &response,
+    );
     let corrected = final_text_of(
         &mut LiveTranscriptEngine::new("soniqo", &[], None).with_vocabulary(&terms),
         &response,

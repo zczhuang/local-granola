@@ -18,8 +18,8 @@ mod listener2;
 mod live_journal;
 mod meeting;
 mod session_transcript;
-mod stt_routing;
 mod stopped_captures;
+mod stt_routing;
 mod voiceprint;
 
 pub use anlg_transcription_core::listener::{

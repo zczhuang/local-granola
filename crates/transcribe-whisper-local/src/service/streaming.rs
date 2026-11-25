@@ -31,8 +31,7 @@ use super::response::{
 };
 use super::{
     build_metadata, build_model_with_languages_and_prompt, parse_listen_params, redemption_time,
-    vocabulary_prompt,
-    transcribe_chunk,
+    transcribe_chunk, vocabulary_prompt,
 };
 
 pub const LISTEN_PATH: &str = "/v1/listen";

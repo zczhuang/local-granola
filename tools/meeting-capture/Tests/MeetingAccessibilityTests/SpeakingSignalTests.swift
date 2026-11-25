@@ -53,8 +53,9 @@ final class SpeakingSignalTests: XCTestCase {
   }
 
   func meeting(_ bundleID: String, _ snapshot: MeetingAXSnapshot) throws -> MeetingObservation {
-    guard case .meeting(let meeting) = MeetingAXAdapter.project(
-      bundleID: bundleID, snapshot: snapshot)
+    guard
+      case .meeting(let meeting) = MeetingAXAdapter.project(
+        bundleID: bundleID, snapshot: snapshot)
     else {
       throw XCTSkip("not a meeting")
     }

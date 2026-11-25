@@ -23,8 +23,8 @@ import { PendingProposalsBanner } from "./components/pending-proposals-banner";
 import { SessionSurface } from "./components/session-surface";
 import { getCanShowTranscript, useHasTranscript } from "./components/shared";
 import { useAutoEnhance } from "./hooks/useAutoEnhance";
-import { useLocalReenhance } from "./hooks/useLocalReenhance";
 import { useEnhancedNotes } from "./hooks/useEnhancedNotes";
+import { useLocalReenhance } from "./hooks/useLocalReenhance";
 import { shouldShowSessionTopAudioPlayer } from "./top-audio-player";
 import { getSessionEvent } from "./utils";
 

@@ -31,7 +31,9 @@ pub enum SttRouteDecision {
     Pending,
     Parakeet,
     /// `lang` pins Whisper to one language; `None` lets it detect per chunk (mixed meetings).
-    Whisper { lang: Option<String> },
+    Whisper {
+        lang: Option<String>,
+    },
 }
 
 impl From<Route> for SttRouteDecision {

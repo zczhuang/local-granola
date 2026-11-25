@@ -1145,7 +1145,12 @@ fn meeting_cluster_votes_rekey_named_voices_by_cluster() {
     assert!(meeting_cluster_votes(std::slice::from_ref(&evidence), &[T0], T0, &[]).is_empty());
     // Words recorded before the capture began are nobody's.
     assert!(
-        meeting_cluster_votes(std::slice::from_ref(&evidence), &[T0], T0 - 10_000_000, &words)
-            .is_empty()
+        meeting_cluster_votes(
+            std::slice::from_ref(&evidence),
+            &[T0],
+            T0 - 10_000_000,
+            &words
+        )
+        .is_empty()
     );
 }

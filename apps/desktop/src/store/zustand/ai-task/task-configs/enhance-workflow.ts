@@ -11,8 +11,8 @@ import { commands as templateCommands } from "@anlg/plugin-template";
 import type { TaskArgsMapTransformed, TaskConfig } from ".";
 import type { EnhanceImageContext } from "./enhance-images";
 import { executeLocalEnhance } from "./enhance-local";
-import { shouldEnhanceLocally } from "./local-route";
 import { createEnhanceValidator } from "./enhance-validator";
+import { shouldEnhanceLocally } from "./local-route";
 import { appendPreferredNamesGuidance } from "./preferred-names";
 
 import {

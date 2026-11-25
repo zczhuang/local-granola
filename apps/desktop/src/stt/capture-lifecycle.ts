@@ -504,9 +504,13 @@ export function useCaptureLifecycle(sessionId: string) {
           .filter(
             (capture) => chunk.capture_started_at >= capture.startedAt - 5_000,
           )
-          .reduce<
-            InheritedCapture | undefined
-          >((latest, capture) => (!latest || capture.startedAt > latest.startedAt ? capture : latest), undefined);
+          .reduce<InheritedCapture | undefined>(
+            (latest, capture) =>
+              !latest || capture.startedAt > latest.startedAt
+                ? capture
+                : latest,
+            undefined,
+          );
       };
       const listRecoveryChunks = async () => {
         const result =
