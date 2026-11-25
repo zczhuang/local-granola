@@ -217,7 +217,7 @@ function OnboardingScreenContent({
         ])}
       >
         <h1 className="font-sans text-foreground text-3xl leading-tight font-semibold tracking-tight">
-          <Trans>Welcome to Anarlog</Trans>
+          <Trans>Welcome to Oatmeal</Trans>
         </h1>
       </div>
 
@@ -229,13 +229,13 @@ function OnboardingScreenContent({
             description={
               currentPlatform === "macos" ? (
                 <Trans>
-                  Anarlog needs microphone and system audio to transcribe your
+                  Oatmeal needs microphone and system audio to transcribe your
                   meetings, plus Accessibility to read meeting controls, visible
                   chat.
                 </Trans>
               ) : (
                 <Trans>
-                  Anarlog needs access to your microphone and system audio to
+                  Oatmeal needs access to your microphone and system audio to
                   record and transcribe your meetings
                 </Trans>
               )
@@ -282,7 +282,7 @@ function OnboardingScreenContent({
             title={<Trans>Connect calendar</Trans>}
             description={
               <Trans>
-                Anarlog will sync your calendar to get meeting reminders
+                Oatmeal will sync your calendar to get meeting reminders
               </Trans>
             }
             completedTitle={<Trans>Calendar connected</Trans>}

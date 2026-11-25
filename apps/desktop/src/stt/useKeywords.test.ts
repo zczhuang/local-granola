@@ -170,9 +170,9 @@ describe("getSessionKeywords", () => {
     await expect(
       getSessionKeywords({
         sessionId: "session-1",
-        dictionaryTerms: ["Anarlog"],
+        dictionaryTerms: ["Oatmeal"],
       }),
-    ).resolves.toEqual(expect.arrayContaining(["Anarlog", "Launch"]));
+    ).resolves.toEqual(expect.arrayContaining(["Oatmeal", "Launch"]));
   });
 
   it("prioritizes mapped participants and attached event attendees", async () => {
@@ -200,10 +200,10 @@ describe("getSessionKeywords", () => {
 
     const result = await getSessionKeywords({
       sessionId: "session-1",
-      dictionaryTerms: ["Anarlog"],
+      dictionaryTerms: ["Oatmeal"],
     });
 
-    expect(result.slice(0, 3)).toEqual(["Alice Kim", "Mina Park", "Anarlog"]);
+    expect(result.slice(0, 3)).toEqual(["Alice Kim", "Mina Park", "Oatmeal"]);
     expect(result).toEqual(expect.arrayContaining(["Launch"]));
     expect(result).not.toContain("John Jeong");
   });
@@ -238,13 +238,13 @@ describe("dictionary term helpers", () => {
   it.each([
     {
       name: "parses stored JSON dictionary terms",
-      run: () => parseDictionaryTermsJson(JSON.stringify(["Anarlog", "Char"])),
-      expected: ["Anarlog", "Char"],
+      run: () => parseDictionaryTermsJson(JSON.stringify(["Oatmeal", "Char"])),
+      expected: ["Oatmeal", "Char"],
     },
     {
       name: "parses an array payload and drops duplicate spellings",
-      run: () => parseDictionaryTermsJson(["Anarlog", " anarlog "]),
-      expected: ["Anarlog"],
+      run: () => parseDictionaryTermsJson(["Oatmeal", " anarlog "]),
+      expected: ["Oatmeal"],
     },
     {
       name: "returns no terms for malformed JSON",
@@ -254,21 +254,21 @@ describe("dictionary term helpers", () => {
     {
       name: "parses newline and comma separated terms",
       run: () =>
-        parseDictionaryTermsText("Anarlog\nFastConformer, Parakeet TDT"),
-      expected: ["Anarlog", "FastConformer", "Parakeet TDT"],
+        parseDictionaryTermsText("Oatmeal\nFastConformer, Parakeet TDT"),
+      expected: ["Oatmeal", "FastConformer", "Parakeet TDT"],
     },
     {
       name: "normalizes duplicate terms while preserving first spelling",
-      run: () => normalizeKeywordList(["Anarlog", " anarlog ", "Parakeet"]),
-      expected: ["Anarlog", "Parakeet"],
+      run: () => normalizeKeywordList(["Oatmeal", " anarlog ", "Parakeet"]),
+      expected: ["Oatmeal", "Parakeet"],
     },
   ])("$name", ({ run, expected }) => {
     expect(run()).toEqual(expected);
   });
 
   it("formats stored terms one per line", () => {
-    expect(formatDictionaryTerms(["Anarlog", "Parakeet TDT"])).toBe(
-      "Anarlog\nParakeet TDT",
+    expect(formatDictionaryTerms(["Oatmeal", "Parakeet TDT"])).toBe(
+      "Oatmeal\nParakeet TDT",
     );
   });
 });

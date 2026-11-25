@@ -173,7 +173,7 @@ test("refuses without a note when the selected microphone records on the legacy 
   expect(mocks.recorded).toEqual([]);
 });
 
-test("refuses while Anarlog is already recording", async () => {
+test("refuses while Oatmeal is already recording", async () => {
   Object.assign(mocks.live, { status: "active", sessionId: "other-note" });
   render(<BrowserMeetingStartBridge />);
   await requestStart("extension-start-1");

@@ -60,7 +60,7 @@ function withProAccess<T extends { execute?: (...args: any[]) => any }>(
       if (!access.canUsePro()) {
         access.onProRequired();
         throw new Error(
-          "This requires Anarlog Pro. Explain that an upgrade is required; do not claim the action succeeded.",
+          "This requires Oatmeal Pro. Explain that an upgrade is required; do not claim the action succeeded.",
         );
       }
       return toolDef.execute!(...args);

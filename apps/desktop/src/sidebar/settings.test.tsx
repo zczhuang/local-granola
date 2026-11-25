@@ -143,7 +143,7 @@ describe("SettingsNav", () => {
     Boolean(
       screen
         .getByRole("button", { name })
-        .querySelector("[aria-label='Requires Anarlog Pro']"),
+        .querySelector("[aria-label='Requires Oatmeal Pro']"),
     );
 
   it.each([

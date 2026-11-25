@@ -29,7 +29,7 @@ const MAX_DICTATION_SECONDS = 5 * 60;
 // One read of the composer this long after an insert tells what the person kept of it.
 const KEPT_READ_MS = 20_000;
 const MEETING_ACTIVE_MESSAGE =
-  "Voice input is unavailable while Anarlog is recording a meeting.";
+  "Voice input is unavailable while Oatmeal is recording a meeting.";
 
 /** Voice input into the chat composer, at the caret or over the selection it started on. */
 export function useDictation({
@@ -141,7 +141,7 @@ export function useDictation({
       onError: (message) => {
         if (message === MEETING_ACTIVE_MESSAGE) {
           toast.warning(
-            t`Voice input is unavailable while Anarlog is recording a meeting.`,
+            t`Voice input is unavailable while Oatmeal is recording a meeting.`,
           );
           return;
         }

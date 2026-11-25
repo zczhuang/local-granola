@@ -63,7 +63,7 @@ describe("the meeting chat notice outcome", () => {
     expect(toastWarningMock).toHaveBeenCalledOnce();
     expect(toastWarningMock.mock.calls[0]?.[1]).toMatchObject({
       id: "meeting-disclosure-send-failed",
-      description: "Allow Accessibility for Anarlog to post it.",
+      description: "Allow Accessibility for Oatmeal to post it.",
     });
     expect(unlistenMock).toHaveBeenCalledOnce();
   });
@@ -73,7 +73,7 @@ describe("the meeting chat notice outcome", () => {
     await settle();
     deliver({ outcome: "unconfirmed" });
     expect(toastWarningMock).toHaveBeenCalledWith(
-      "Anarlog may have posted the meeting chat disclosure.",
+      "Oatmeal may have posted the meeting chat disclosure.",
       expect.objectContaining({
         description: "It wasn't confirmed, so it won't be posted again.",
       }),

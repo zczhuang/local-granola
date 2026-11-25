@@ -1158,7 +1158,7 @@ describe("CloudSync auth lifecycle", () => {
           JSON.stringify({
             error: {
               code: "subscription_required",
-              message: "Anarlog Pro is required for CloudSync",
+              message: "Oatmeal Pro is required for CloudSync",
             },
           }),
           { status: 403, headers: { "Content-Type": "application/json" } },
@@ -1175,7 +1175,7 @@ describe("CloudSync auth lifecycle", () => {
     expect(configureCloudsyncToken).not.toHaveBeenCalled();
     expect(suspendCloudsync).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(
-      "[cloudsync] Anarlog Pro is required; sync remains disabled",
+      "[cloudsync] Oatmeal Pro is required; sync remains disabled",
     );
     expect(getCloudsyncCredentialBlock()).toBe("not_entitled");
   });

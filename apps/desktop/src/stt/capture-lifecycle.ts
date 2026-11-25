@@ -485,7 +485,7 @@ export function useCaptureLifecycle(sessionId: string) {
           toast.error("Your transcript could not be saved", {
             id: `transcript-storage-${sessionId}`,
             description:
-              "Free up disk space. Anarlog will try to recover the missing text while this meeting is still recording.",
+              "Free up disk space. Oatmeal will try to recover the missing text while this meeting is still recording.",
           });
           console.error("[listener] failed to persist transcript", error);
         },
@@ -1094,7 +1094,7 @@ export function useCaptureLifecycle(sessionId: string) {
             });
             if (transcriptWriteError || !details.liveTranscriptionActive) {
               await notifyFailure(
-                "Anarlog could not finish saving the transcript. The recording was kept so you can try again.",
+                "Oatmeal could not finish saving the transcript. The recording was kept so you can try again.",
                 "post-capture-transcript-incomplete",
               );
             } else {
@@ -1128,8 +1128,8 @@ export function useCaptureLifecycle(sessionId: string) {
         ) {
           await notifyFailure(
             details.audioPath
-              ? "Anarlog could not finish saving the transcript. The recording was kept so you can try again."
-              : "Anarlog could not save part of the live transcript.",
+              ? "Oatmeal could not finish saving the transcript. The recording was kept so you can try again."
+              : "Oatmeal could not save part of the live transcript.",
             details.audioPath
               ? "post-capture-transcript-incomplete"
               : "live-transcript-persist-failed",
@@ -1236,7 +1236,7 @@ export function useCaptureLifecycle(sessionId: string) {
                 error,
               );
               await notifyFailure(
-                "The transcript was saved, but Anarlog could not start the summary. Try generating it again.",
+                "The transcript was saved, but Oatmeal could not start the summary. Try generating it again.",
                 "post-capture-summary-failed",
               );
               await requestRecovery();
@@ -1257,7 +1257,7 @@ export function useCaptureLifecycle(sessionId: string) {
               summaryScheduled = false;
               console.error("[listener] failed to schedule summary", error);
               await notifyFailure(
-                "The transcript was saved, but Anarlog could not start the summary. Try generating it again.",
+                "The transcript was saved, but Oatmeal could not start the summary. Try generating it again.",
                 "post-capture-summary-failed",
               );
             }
@@ -1404,14 +1404,14 @@ export function useCaptureLifecycle(sessionId: string) {
               id: `audio-deletion-${sessionId}`,
               duration: Infinity,
               description:
-                "Anarlog could not remove the temporary audio. Cleanup will be retried automatically.",
+                "Oatmeal could not remove the temporary audio. Cleanup will be retried automatically.",
             });
           } else if (audioKeptForTranscription) {
             toast.warning("Audio kept to finish your transcript", {
               id: `capture-incomplete-${sessionId}`,
               duration: Infinity,
               description:
-                "Part of this meeting could not be transcribed yet, so Anarlog kept its temporary audio on purpose. It will be deleted automatically once transcription succeeds.",
+                "Part of this meeting could not be transcribed yet, so Oatmeal kept its temporary audio on purpose. It will be deleted automatically once transcription succeeds.",
             });
           }
         } else {

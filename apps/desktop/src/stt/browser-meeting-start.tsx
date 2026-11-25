@@ -23,10 +23,10 @@ export const START_REPLY_EVENT = "anlg:browser-meeting-start-reply";
 const GO_TIMEOUT_MS = 10_000;
 
 const ALREADY_RECORDING =
-  "Anarlog is already recording a meeting. Stop it first.";
+  "Oatmeal is already recording a meeting. Stop it first.";
 const NEEDS_CALL_RECORDER =
-  "Only Anarlog's call recorder can confirm a Meet call, and it isn't on for this microphone. Start the recording in Anarlog instead.";
-const COULDNT_CREATE_NOTE = "Anarlog couldn't create a note for this meeting.";
+  "Only Oatmeal's call recorder can confirm a Meet call, and it isn't on for this microphone. Start the recording in Oatmeal instead.";
+const COULDNT_CREATE_NOTE = "Oatmeal couldn't create a note for this meeting.";
 
 type StartReply =
   | { status: "session"; requestId: string; sessionId: string }

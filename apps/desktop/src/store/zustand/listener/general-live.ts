@@ -215,7 +215,7 @@ const notifyTranscriptionStalled = () => {
     id: "live-transcription-stalled",
     duration: Infinity,
     description:
-      "Anarlog keeps recording while live transcription reconnects. Missing text will be recovered from temporary audio while the meeting continues.",
+      "Oatmeal keeps recording while live transcription reconnects. Missing text will be recovered from temporary audio while the meeting continues.",
   });
 };
 

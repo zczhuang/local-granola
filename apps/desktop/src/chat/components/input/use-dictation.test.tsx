@@ -370,7 +370,7 @@ describe("useDictation", () => {
 
     expect(mocks.native.ops.size).toBe(0);
     expect(mocks.toastWarning).toHaveBeenCalledWith(
-      "Voice input is unavailable while Anarlog is recording a meeting.",
+      "Voice input is unavailable while Oatmeal is recording a meeting.",
     );
   });
 });

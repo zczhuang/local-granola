@@ -85,7 +85,7 @@ describe("chat tool registration", () => {
       onProRequired: vi.fn(),
     });
     await expect((tools[name] as any).execute({})).rejects.toThrow(
-      "This requires Anarlog Pro",
+      "This requires Oatmeal Pro",
     );
   });
 
@@ -103,7 +103,7 @@ describe("chat tool registration", () => {
     );
     isPro = false;
     await expect(execute({ meeting_id: "meeting-1" })).rejects.toThrow(
-      "This requires Anarlog Pro",
+      "This requires Oatmeal Pro",
     );
     vi.mocked(getMeeting).mockResolvedValue({ title: "Local note" } as never);
     await expect(

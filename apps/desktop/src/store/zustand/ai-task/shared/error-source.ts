@@ -18,7 +18,7 @@ const PROVIDER_HOSTS: ReadonlyArray<[RegExp, string]> = [
   [/(^|\.)azure\.com$/, "Azure OpenAI"],
 ];
 
-// Plain-text bodies the Anarlog LLM proxy returns when it cannot reach or
+// Plain-text bodies the Oatmeal LLM proxy returns when it cannot reach or
 // read from OpenRouter (crates/llm-proxy/src/handler/mod.rs).
 const PROXY_UPSTREAM_FAILURE_BODIES = new Set([
   "Upstream request failed",

@@ -36,7 +36,7 @@ import { getBatchProvider, useRunBatch } from "~/stt/useRunBatch";
 import { useSTTConnection } from "~/stt/useSTTConnection";
 
 const LOCAL_UNAVAILABLE =
-  "Your local transcription model can't finish this dictation. Check Settings > Transcription; Anarlog won't send it to a cloud provider instead.";
+  "Your local transcription model can't finish this dictation. Check Settings > Transcription; Oatmeal won't send it to a cloud provider instead.";
 
 const SETTING_KEYS = [
   "current_stt_provider",

@@ -7,7 +7,7 @@ describe("micAppsShowInUse", () => {
     expect(micAppsShowInUse([{ id: "us.zoom.xos", name: "Zoom" }])).toBe(true);
   });
 
-  it("ignores Anarlog itself", () => {
+  it("ignores Oatmeal itself", () => {
     expect(
       micAppsShowInUse([
         { id: "com.anarlog.app", name: "Anarlog" },

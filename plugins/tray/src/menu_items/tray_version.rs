@@ -14,8 +14,10 @@ impl TrayVersion {
             "com.hyprnote.staging" => "staging",
             "com.hyprnote.dev" => "dev",
             _ => match app_name {
-                "Anarlog" | "Char" | "Hyprnote" => "stable",
-                "Anarlog Staging" | "Char Staging" | "Hyprnote Staging" => "staging",
+                "Oatmeal" | "Anarlog" | "Char" | "Hyprnote" => "stable",
+                "Oatmeal Staging" | "Anarlog Staging" | "Char Staging" | "Hyprnote Staging" => {
+                    "staging"
+                }
                 _ => "dev",
             },
         }

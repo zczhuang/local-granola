@@ -29,7 +29,7 @@ pub enum Error {
     #[error("failed to determine current app path")]
     FailedToDetermineCurrentAppPath,
     #[error(
-        "The update needs system packages apt can't install, so Anarlog stays on its current version ({0}). Run `sudo apt update`, then try the update again."
+        "The update needs system packages apt can't install, so Oatmeal stays on its current version ({0}). Run `sudo apt update`, then try the update again."
     )]
     DebDependencies(String),
     #[error("The update failed to install: {0}")]
@@ -37,7 +37,7 @@ pub enum Error {
     #[error("failed to schedule installed app launch at {path}: {details}")]
     FailedToScheduleInstalledAppLaunch { path: String, details: String },
     #[error(
-        "Updates are paused until your notes finish moving from your custom folder ({0}). Restart Anarlog to retry moving them, or contact support if this keeps happening."
+        "Updates are paused until your notes finish moving from your custom folder ({0}). Restart Oatmeal to retry moving them, or contact support if this keeps happening."
     )]
     UnfinishedVaultMove(String),
 }

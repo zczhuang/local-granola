@@ -19,13 +19,13 @@ function guidanceMessage({ kind, app: appId }: CameraGuidance) {
   const app = CAMERA_APP_NAMES[appId];
   switch (kind) {
     case "pick_camera":
-      return t`Pick Anarlog Camera as your camera. Anarlog couldn't switch it in ${app}.`;
+      return t`Pick Oatmeal Camera as your camera. Oatmeal couldn't switch it in ${app}.`;
     case "check_background_first":
-      return t`If ${app} blurs or replaces your background, that hides the badge. Keep it on until Anarlog Camera hides your room, then check your video before turning off ${app}'s background.`;
+      return t`If ${app} blurs or replaces your background, that hides the badge. Keep it on until Oatmeal Camera hides your room, then check your video before turning off ${app}'s background.`;
     case "turn_off_app_background":
-      return t`Anarlog Camera is hiding your room now. Turn off ${app}'s blur or background: it hides the badge.`;
+      return t`Oatmeal Camera is hiding your room now. Turn off ${app}'s blur or background: it hides the badge.`;
     case "app_background_left_on":
-      return t`Anarlog left ${app}'s blur or background on because it couldn't confirm Anarlog Camera hides your room yet.`;
+      return t`Oatmeal left ${app}'s blur or background on because it couldn't confirm Oatmeal Camera hides your room yet.`;
   }
 }
 

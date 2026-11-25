@@ -100,7 +100,7 @@ export function DictationRecoveryList() {
       </h3>
       <p className="text-muted-foreground text-xs">
         <Trans>
-          Kept on this device for 24 hours. Anarlog never inserts these by
+          Kept on this device for 24 hours. Oatmeal never inserts these by
           itself.
         </Trans>
       </p>

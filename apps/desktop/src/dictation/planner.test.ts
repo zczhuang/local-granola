@@ -122,7 +122,7 @@ vi.mock("@anlg/plugin-dictation", () => ({
       weights: string | null;
       event: unknown;
     }) => mocks.record!(request),
-    suggestDictationTerms: async () => ["Anarlog"],
+    suggestDictationTerms: async () => ["Oatmeal"],
   },
 }));
 
@@ -289,7 +289,7 @@ describe("dictation planner", () => {
       const { result, rerender } = renderHook(() =>
         useDictationPlanner("dictation-1"),
       );
-      const used = result.current.used("user-1", "hello Anarlog");
+      const used = result.current.used("user-1", "hello Oatmeal");
       await vi.waitFor(() => expect(finish).toBeDefined());
       mocks.account = "user-2";
       rerender();
@@ -311,7 +311,7 @@ describe("dictation planner", () => {
       const kept = result.current.kept(
         "user-1",
         "hello anarlock",
-        "hello Anarlog",
+        "hello Oatmeal",
         () => true,
       );
       await vi.waitFor(() => expect(finish).toBeDefined());
@@ -338,11 +338,11 @@ describe("dictation planner", () => {
         );
         const writing =
           call === "used"
-            ? result.current.used("user-1", "hello Anarlog")
+            ? result.current.used("user-1", "hello Oatmeal")
             : result.current.kept(
                 "user-1",
                 "hello anarlock",
-                "hello Anarlog",
+                "hello Oatmeal",
                 () => true,
               );
         await vi.waitFor(() => expect(mocks.queued).toBe(1));
