@@ -1,3 +1,5 @@
+> **local-granola:** this is a private personal fork of [fastrepl/anarlog](https://github.com/fastrepl/anarlog) (MIT, see `LICENSE`), changed to run fully locally on one Mac with Ollama. See [SETUP.md](SETUP.md). The upstream README follows.
+
 > **Note:** The team is now building **[char](https://char.com)**. The **anarlog** community application remains open-source, MIT-licensed, and maintained as the local-first meeting notetaker in this repo. Source-visible enterprise components are commercially licensed.
 
 <div align="center">
