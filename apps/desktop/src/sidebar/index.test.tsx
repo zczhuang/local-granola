@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   currentTab: { type: "empty" } as { type: string } | null,
   openNew: vi.fn(),
   leaveOverlayTab: vi.fn(),
+  leaveAllOverlayTabs: vi.fn(),
   platform: "macos",
 }));
 
@@ -14,6 +15,7 @@ vi.mock("@tauri-apps/plugin-os", () => ({
 
 vi.mock("~/shared/leave-overlay-tab", () => ({
   leaveOverlayTab: () => mocks.leaveOverlayTab(),
+  leaveAllOverlayTabs: () => mocks.leaveAllOverlayTabs(),
 }));
 
 vi.mock("~/store/zustand/tabs", () => ({
@@ -72,6 +74,7 @@ describe("LeftSidebar", () => {
     mocks.currentTab = { type: "empty" };
     mocks.openNew.mockClear();
     mocks.leaveOverlayTab.mockClear();
+    mocks.leaveAllOverlayTabs.mockClear();
     mocks.platform = "macos";
   });
 
@@ -144,5 +147,16 @@ describe("LeftSidebar", () => {
     fireEvent.click(settingsButton);
     expect(mocks.leaveOverlayTab).toHaveBeenCalledOnce();
     expect(mocks.openNew).not.toHaveBeenCalled();
+  });
+
+  it("jumps directly back to Notes from Calendar or Settings", () => {
+    mocks.currentTab = { type: "calendar" };
+    render(<LeftSidebar />);
+
+    const notesButton = screen.getByRole("button", { name: "Notes" });
+    expect(notesButton.getAttribute("aria-current")).toBeNull();
+
+    fireEvent.click(notesButton);
+    expect(mocks.leaveAllOverlayTabs).toHaveBeenCalledOnce();
   });
 });
