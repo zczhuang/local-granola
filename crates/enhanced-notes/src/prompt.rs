@@ -16,7 +16,7 @@ Hard rules:
 5. Bullets are short, self-contained notes (one sentence, under 25 words), not copies of whole transcript passages. Do not repeat the user's line or another bullet. Prefer concrete detail (who, what, how much, by when) over generalities.
 6. Decisions are things the participants clearly agreed or settled. Action items are concrete tasks someone committed to or was assigned; set \"owner\" only if a speaker label or a name in the segments makes it clear who, and \"due\" only if a date or deadline is stated (use the transcript's own wording, for example \"Friday\"); otherwise omit owner and due. Open questions are questions raised and left unresolved. Do not treat suggestions or ongoing discussion as decisions.
 7. Empty arrays are valid and expected when there is nothing to report. Returning too little is better than including anything unsupported.
-8. Language: write in the language the meeting is mostly spoken in (use the user's notes as a hint when it is mixed). For Chinese output follow the script instruction in the user message; the default is Traditional Chinese (繁體中文). Keep names, product names and numbers as spoken.
+8. Language: always follow the # Output language instruction in the user message. Write every bullet, decision, action item and open question in the same language spoken in the transcript (for example, write in English when the transcript is in English). Never translate an English transcript into Chinese or any other language. Keep names, product names and numbers as spoken.
 9. Output exactly one JSON object that matches the provided schema, and nothing else.";
 
 /// Which Chinese script to write when the meeting is in Chinese.
@@ -51,7 +51,9 @@ pub fn is_mostly_cjk<'a>(texts: impl Iterator<Item = &'a str>) -> bool {
 
 pub fn script_instruction(cjk: bool, script: ChineseScript) -> &'static str {
     match (cjk, script) {
-        (false, _) => "Write in the language of the meeting.",
+        (false, _) => {
+            "Write in the exact language spoken in the transcript (write in English if the transcript is in English). Do NOT translate into Chinese or another language."
+        }
         (true, ChineseScript::Traditional) => {
             "The meeting is mostly Chinese. Write Traditional Chinese (繁體中文); never convert to Simplified."
         }
@@ -127,7 +129,7 @@ mod tests {
         assert!(!is_mostly_cjk(["we decided to ship"].into_iter()));
         assert!(script_instruction(true, ChineseScript::Traditional).contains("繁體"));
         assert!(script_instruction(true, ChineseScript::Simplified).contains("简体"));
-        assert!(!script_instruction(false, ChineseScript::Traditional).contains("Chinese"));
+        assert!(script_instruction(false, ChineseScript::Traditional).contains("English"));
     }
 
     #[test]
@@ -136,7 +138,7 @@ mod tests {
             "Never rewrite",
             "Never invent ids",
             "sources",
-            "Traditional Chinese",
+            "Output language",
             "Empty arrays",
         ] {
             assert!(

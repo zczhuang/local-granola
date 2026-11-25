@@ -10,6 +10,7 @@ import { useMountEffect } from "@anlg/ui/hooks/use-mount-effect";
 import { parseEventInstant } from "@anlg/utils";
 
 import { useBillingAccess } from "~/auth/billing-context";
+import { LOCAL_ONLY } from "~/shared/local-only";
 import { getIgnoredEventSets } from "~/calendar/ignored-events";
 import { liveQueryClient } from "~/db";
 import { getOrCreateSessionForEventId } from "~/session/queries";
@@ -355,7 +356,9 @@ export async function startScheduledMeeting(
 export function ScheduledMeetingAutoStart() {
   const billing = useBillingAccess();
   const firedEventIdsRef = useRef(new Set<string>());
-  return billing.isReady && billing.isPro ? (
+  // LOCAL-GRANOLA: scheduled meeting auto-start/auto-join runs locally without a hosted Pro subscription.
+  const allowed = LOCAL_ONLY || (billing.isReady && billing.isPro);
+  return allowed ? (
     <ProScheduledMeetingAutoStart firedEventIdsRef={firedEventIdsRef} />
   ) : null;
 }

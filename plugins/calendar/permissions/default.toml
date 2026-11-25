@@ -25,4 +25,8 @@ permissions = [
     "allow-reorder-pinned-contacts",
     "allow-merge-humans",
     "allow-apply-contact-enhancement",
+    "allow-get-local-google-calendar-status",
+    "allow-save-local-google-calendar-credentials",
+    "allow-connect-local-google-calendar",
+    "allow-disconnect-local-google-calendar",
 ]

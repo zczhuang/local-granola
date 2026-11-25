@@ -28,6 +28,10 @@ Default permissions for the plugin
 - `allow-reorder-pinned-contacts`
 - `allow-merge-humans`
 - `allow-apply-contact-enhancement`
+- `allow-get-local-google-calendar-status`
+- `allow-save-local-google-calendar-credentials`
+- `allow-connect-local-google-calendar`
+- `allow-disconnect-local-google-calendar`
 
 ## Permission Table
 
@@ -119,6 +123,32 @@ Denies the available_providers command without any pre-configured scope.
 <tr>
 <td>
 
+`calendar:allow-connect-local-google-calendar`
+
+</td>
+<td>
+
+Enables the connect_local_google_calendar command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:deny-connect-local-google-calendar`
+
+</td>
+<td>
+
+Denies the connect_local_google_calendar command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `calendar:allow-create-event`
 
 </td>
@@ -190,6 +220,58 @@ Enables the create_organization command without any pre-configured scope.
 <td>
 
 Denies the create_organization command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:allow-disconnect-local-google-calendar`
+
+</td>
+<td>
+
+Enables the disconnect_local_google_calendar command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:deny-disconnect-local-google-calendar`
+
+</td>
+<td>
+
+Denies the disconnect_local_google_calendar command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:allow-get-local-google-calendar-status`
+
+</td>
+<td>
+
+Enables the get_local_google_calendar_status command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:deny-get-local-google-calendar-status`
+
+</td>
+<td>
+
+Denies the get_local_google_calendar_status command without any pre-configured scope.
 
 </td>
 </tr>
@@ -372,6 +454,32 @@ Enables the reorder_pinned_contacts command without any pre-configured scope.
 <td>
 
 Denies the reorder_pinned_contacts command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:allow-save-local-google-calendar-credentials`
+
+</td>
+<td>
+
+Enables the save_local_google_calendar_credentials command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:deny-save-local-google-calendar-credentials`
+
+</td>
+<td>
+
+Denies the save_local_google_calendar_credentials command without any pre-configured scope.
 
 </td>
 </tr>

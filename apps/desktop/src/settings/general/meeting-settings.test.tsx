@@ -3,7 +3,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   isPro: true,
+  localOnly: false,
   platform: vi.fn(() => "macos"),
+}));
+
+vi.mock("~/shared/local-only", () => ({
+  get LOCAL_ONLY() {
+    return mocks.localOnly;
+  },
 }));
 
 vi.mock("~/auth/billing-context", () => ({
@@ -60,6 +67,7 @@ describe("MeetingSettingsView", () => {
     cleanup();
     mocks.platform.mockReturnValue("macos");
     mocks.isPro = true;
+    mocks.localOnly = false;
   });
 
   it("hides meeting AX controls on Windows until UI Automation lands", () => {
@@ -138,5 +146,33 @@ describe("MeetingSettingsView", () => {
       }),
     );
     expect(disclosure.onChange).toHaveBeenCalledWith(true);
+  });
+
+  it("enables scheduled recording and auto-join in LOCAL_ONLY without Pro", () => {
+    mocks.isPro = false;
+    mocks.localOnly = true;
+    const onStart = vi.fn();
+    const onJoin = vi.fn();
+    render(
+      <MeetingSettingsView
+        autoStartScheduledMeetings={{ value: true, onChange: onStart }}
+        autoJoinScheduledMeetings={{ value: false, onChange: onJoin }}
+        autoStopMeetings={setting()}
+        floatingBar={setting()}
+        meetingDisclosureAutoPost={setting()}
+        captureMeetingChat={setting()}
+        captureSharedScreens={setting()}
+      />,
+    );
+    const start = screen.getByRole("switch", {
+      name: "Start when meeting begins",
+    });
+    const join = screen.getByRole("switch", {
+      name: "Join scheduled meetings",
+    });
+    expect(start.getAttribute("aria-checked")).toBe("true");
+    expect(join.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(join);
+    expect(onJoin).toHaveBeenCalledWith(true);
   });
 });

@@ -13,6 +13,7 @@ import {
   OAuthCalendarSelection,
   useOAuthCalendarSelection,
 } from "./calendar-selection";
+import { LocalGoogleProviderContent } from "./local-google";
 import { ReconnectRequiredIndicator } from "./status";
 
 import { useAuth } from "~/auth";
@@ -21,6 +22,7 @@ import { useConnections } from "~/auth/useConnections";
 import type { CalendarProvider } from "~/calendar/components/shared";
 import { PlanGate } from "~/settings/plan-gate";
 import { useOpenIntegrationUrl } from "~/shared/integration";
+import { LOCAL_ONLY } from "~/shared/local-only";
 
 export function OAuthProviderContent({
   config,
@@ -51,6 +53,15 @@ export function OAuthProviderContent({
       returnTo,
     });
   }, [config.nangoIntegrationId, onConnectStarted, openIntegration, returnTo]);
+
+  if (LOCAL_ONLY && config.id === "google") {
+    return (
+      <LocalGoogleProviderContent
+        config={config}
+        connections={providerConnections}
+      />
+    );
+  }
 
   if (!auth.session) {
     return (

@@ -2,6 +2,7 @@ mod apple_identity;
 mod convert;
 mod error;
 mod fetch;
+pub mod local_google;
 pub mod runtime;
 mod windows_tz;
 
@@ -9,6 +10,7 @@ pub use anlg_calendar_interface::{
     CalendarEvent, CalendarListItem, CalendarProviderType, CreateEventInput, EventFilter,
 };
 pub use error::Error;
+pub use local_google::{LocalGoogleAccountSummary, LocalGoogleStatus};
 
 pub fn start(runtime: impl runtime::CalendarRuntime) {
     #[cfg(target_os = "macos")]
@@ -182,6 +184,24 @@ pub async fn list_events(
     }
 }
 
+pub async fn list_local_google_calendars(
+    store_path: &std::path::Path,
+    connection_id: &str,
+) -> Result<Vec<CalendarListItem>, Error> {
+    let calendars = local_google::list_calendars(store_path, connection_id).await?;
+    Ok(convert::convert_google_calendars(calendars))
+}
+
+pub async fn list_local_google_events(
+    store_path: &std::path::Path,
+    connection_id: &str,
+    filter: EventFilter,
+) -> Result<Vec<CalendarEvent>, Error> {
+    let calendar_id = filter.calendar_tracking_id.clone();
+    let events = local_google::list_events(store_path, connection_id, filter).await?;
+    Ok(convert::convert_google_events(events, &calendar_id))
+}
+
 pub fn open_calendar(provider: CalendarProviderType) -> Result<(), Error> {
     match provider {
         CalendarProviderType::Apple => open_apple_calendar(),
@@ -232,8 +252,10 @@ pub fn parse_meeting_link(text: &str) -> Option<String> {
                     .unwrap(),
             ),
             Matcher::Simple(
-                Regex::new(r"https://(?:[a-z0-9.-]+\.)?zoom\.us/j/\d+(\?pwd=[a-zA-Z0-9.]+)?")
-                    .unwrap(),
+                Regex::new(
+                    r#"https://(?:[a-z0-9.-]+\.)?zoom\.us/(?:(?:j|w|s)/\d+|wc/join/\d+|my/[a-zA-Z0-9._-]+)(?:\?[^\s<>"']+)?"#,
+                )
+                .unwrap(),
             ),
             Matcher::Simple(
                 Regex::new(r#"https://teams\.microsoft\.com/l/meetup-join/[^\s<>"']+"#).unwrap(),
@@ -467,6 +489,21 @@ mod tests {
                 "zoom bare domain",
                 "https://zoom.us/j/87636383039?pwd=NOWbxkY9GNblR0yaLKaIzcy76IWRoj.1",
                 "https://zoom.us/j/87636383039?pwd=NOWbxkY9GNblR0yaLKaIzcy76IWRoj.1",
+            ),
+            (
+                "zoom passcode with underscore and hyphen",
+                "Join: https://us06web.zoom.us/j/98765432100?pwd=Ab_Cd-Ef123.1",
+                "https://us06web.zoom.us/j/98765432100?pwd=Ab_Cd-Ef123.1",
+            ),
+            (
+                "zoom webinar",
+                "Webinar: https://company.zoom.us/w/81234567890?tk=abc_123-xyz",
+                "https://company.zoom.us/w/81234567890?tk=abc_123-xyz",
+            ),
+            (
+                "zoom personal room",
+                "Room: https://acme.zoom.us/my/team.room",
+                "https://acme.zoom.us/my/team.room",
             ),
             (
                 "Kontur Talk room in html invitation",

@@ -5,13 +5,31 @@ import { isSttConnectionAllowed } from "./local-only-guard";
 const local = { localOnly: true, isCloudModel: false };
 
 describe("isSttConnectionAllowed", () => {
-  it("allows a local provider on loopback", () => {
+  it("allows a local provider on loopback or its in-process on-device URL", () => {
     expect(
       isSttConnectionAllowed(
         { provider: "soniqo", baseUrl: "http://127.0.0.1:5000" },
         local,
       ),
     ).toBe(true);
+    expect(
+      isSttConnectionAllowed(
+        { provider: "soniqo", baseUrl: "soniqo://local" },
+        local,
+      ),
+    ).toBe(true);
+    expect(
+      isSttConnectionAllowed(
+        { provider: "apple_speech", baseUrl: "apple-speech://local" },
+        local,
+      ),
+    ).toBe(true);
+    expect(
+      isSttConnectionAllowed(
+        { provider: "soniqo", baseUrl: "apple-speech://local" },
+        local,
+      ),
+    ).toBe(false);
   });
 
   it("blocks the hosted cloud model", () => {

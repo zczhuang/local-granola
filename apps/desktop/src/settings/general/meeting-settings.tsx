@@ -7,6 +7,7 @@ import { PrimaryRecordingDeviceSelector } from "./primary-recording-device";
 import { useBillingAccess } from "~/auth/billing-context";
 import { PlanGate } from "~/settings/plan-gate";
 import { SettingSwitchRow } from "~/settings/setting-row";
+import { LOCAL_ONLY } from "~/shared/local-only";
 
 interface SettingItem {
   value: boolean;
@@ -31,6 +32,8 @@ export function MeetingSettingsView({
   captureSharedScreens: SettingItem;
 }) {
   const { isPro } = useBillingAccess();
+  // LOCAL-GRANOLA: scheduled auto-start and auto-join run locally without a hosted Pro subscription.
+  const canUseScheduledAutomation = isPro || LOCAL_ONLY;
   const currentPlatform = platform();
   const supportsMeetingAx =
     currentPlatform === "macos" || currentPlatform === "linux";
@@ -42,13 +45,17 @@ export function MeetingSettingsView({
     <div className="flex flex-col gap-4">
       <DefaultMeetingShareAccessSelector />
       <PrimaryRecordingDeviceSelector />
-      <PlanGate plan="pro" allowed={isPro} className="flex flex-col gap-4">
+      <PlanGate
+        plan="pro"
+        allowed={canUseScheduledAutomation}
+        className="flex flex-col gap-4"
+      >
         <SettingSwitchRow
           title={<Trans>Start when meeting begins</Trans>}
           description={
             <Trans>Start listening when a scheduled meeting begins.</Trans>
           }
-          checked={isPro && autoStartScheduledMeetings.value}
+          checked={canUseScheduledAutomation && autoStartScheduledMeetings.value}
           onChange={autoStartScheduledMeetings.onChange}
         />
         <SettingSwitchRow
@@ -58,7 +65,7 @@ export function MeetingSettingsView({
               Open the meeting link when a scheduled meeting begins.
             </Trans>
           }
-          checked={isPro && autoJoinScheduledMeetings.value}
+          checked={canUseScheduledAutomation && autoJoinScheduledMeetings.value}
           onChange={autoJoinScheduledMeetings.onChange}
           disabled={!autoStartScheduledMeetings.value}
         />

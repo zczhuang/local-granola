@@ -192,6 +192,38 @@ async applyContactEnhancement(request: ApplyContactEnhancementRequest) : Promise
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async getLocalGoogleCalendarStatus() : Promise<Result<LocalGoogleStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:calendar|get_local_google_calendar_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async saveLocalGoogleCalendarCredentials(clientIdOrJson: string, clientSecret: string | null) : Promise<Result<LocalGoogleStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:calendar|save_local_google_calendar_credentials", { clientIdOrJson, clientSecret }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async connectLocalGoogleCalendar() : Promise<Result<LocalGoogleAccountSummary, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:calendar|connect_local_google_calendar") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async disconnectLocalGoogleCalendar(connectionId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:calendar|disconnect_local_google_calendar", { connectionId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -251,11 +283,11 @@ ended_at: string; timezone: string | null; is_all_day: boolean;
  * Apple: None | Confirmed | Tentative | Canceled -> map None to Confirmed.
  * Google: confirmed | tentative | cancelled.
  */
-status: EventStatus; organizer: EventPerson | null; attendees: EventAttendee[];
+status: EventStatus; organizer: EventPerson | null; attendees: EventAttendee[]; 
 /**
  * Provider-normalized attendance evidence for automatic meeting actions.
  */
-attendance?: EventAttendance | null; has_recurrence_rules: boolean;
+attendance?: EventAttendance | null; has_recurrence_rules: boolean; 
 /**
  * Google's approach: for an instance of a recurring event, this is the id of the recurring
  * event to which this instance belongs. For Apple, this is the recurrence's series_identifier
@@ -314,6 +346,8 @@ export type IgnoredCalendarItemKind = "events" | "series"
 export type IncomingCalendarEvent = { tracking_id_event: string; tracking_id_calendar: string; legacy_tracking_ids?: string[]; is_cancelled?: boolean; title: string | null; started_at: string | null; ended_at: string | null; location: string | null; meeting_link: string | null; description: string | null; recurrence_series_id: string | null; has_recurrence_rules: boolean; is_all_day: boolean; attendance_json?: string | null }
 export type IncomingEventParticipant = { name?: string | null; email?: string | null; is_organizer?: boolean; is_current_user?: boolean }
 export type IncomingEventParticipants = { tracking_id_event: string; participants: IncomingEventParticipant[] }
+export type LocalGoogleAccountSummary = { connection_id: string; email: string }
+export type LocalGoogleStatus = { configured: boolean; client_id_preview: string | null; accounts: LocalGoogleAccountSummary[] }
 export type MergeHumansRequest = { selected_human_id: string; duplicate_human_id: string }
 export type PinnedContactEntry = { kind: ContactKind; id: string }
 export type ProviderConnectionIds = { provider: CalendarProviderType; connection_ids: string[] }

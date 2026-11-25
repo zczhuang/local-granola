@@ -20,6 +20,12 @@ pub async fn is_provider_enabled<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     provider: CalendarProviderType,
 ) -> Result<bool, Error> {
+    if provider == CalendarProviderType::Google {
+        let store_path = local_google_store_path(&app)?;
+        if !anlg_calendar::local_google::list_local_connection_ids(&store_path)?.is_empty() {
+            return Ok(true);
+        }
+    }
     let config = app.state::<crate::PluginConfig>();
     let token = match provider {
         CalendarProviderType::Apple => None,
@@ -39,9 +45,30 @@ pub async fn list_connection_ids<R: tauri::Runtime>(
     let config = app.state::<crate::PluginConfig>();
     let token = access_token(&app)?;
     let apple = is_apple_authorized(&app).await?;
-    anlg_calendar::list_connection_ids(&config.api_base_url, token.as_deref(), apple)
-        .await
-        .map_err(Into::into)
+    let mut all = anlg_calendar::list_connection_ids(&config.api_base_url, token.as_deref(), apple)
+        .await?;
+
+    let store_path = local_google_store_path(&app)?;
+    let local_google_ids = anlg_calendar::local_google::list_local_connection_ids(&store_path)?;
+    if !local_google_ids.is_empty() {
+        if let Some(entry) = all
+            .iter_mut()
+            .find(|item| item.provider == CalendarProviderType::Google)
+        {
+            for id in local_google_ids {
+                if !entry.connection_ids.contains(&id) {
+                    entry.connection_ids.push(id);
+                }
+            }
+        } else {
+            all.push(anlg_calendar::ProviderConnectionIds {
+                provider: CalendarProviderType::Google,
+                connection_ids: local_google_ids,
+            });
+        }
+    }
+
+    Ok(all)
 }
 
 #[tauri::command]
@@ -51,6 +78,14 @@ pub async fn list_calendars<R: tauri::Runtime>(
     provider: CalendarProviderType,
     connection_id: String,
 ) -> Result<Vec<CalendarListItem>, Error> {
+    if provider == CalendarProviderType::Google
+        && anlg_calendar::local_google::is_local_google_connection(&connection_id)
+    {
+        let store_path = local_google_store_path(&app)?;
+        return anlg_calendar::list_local_google_calendars(&store_path, &connection_id)
+            .await
+            .map_err(Into::into);
+    }
     let config = app.state::<crate::PluginConfig>();
     let token = match provider {
         CalendarProviderType::Apple => String::new(),
@@ -69,6 +104,14 @@ pub async fn list_events<R: tauri::Runtime>(
     connection_id: String,
     filter: EventFilter,
 ) -> Result<Vec<CalendarEvent>, Error> {
+    if provider == CalendarProviderType::Google
+        && anlg_calendar::local_google::is_local_google_connection(&connection_id)
+    {
+        let store_path = local_google_store_path(&app)?;
+        return anlg_calendar::list_local_google_events(&store_path, &connection_id, filter)
+            .await
+            .map_err(Into::into);
+    }
     let config = app.state::<crate::PluginConfig>();
     let token = match provider {
         CalendarProviderType::Apple => String::new(),
@@ -83,6 +126,66 @@ pub async fn list_events<R: tauri::Runtime>(
     )
     .await
     .map_err(Into::into)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_local_google_calendar_status<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<anlg_calendar::LocalGoogleStatus, Error> {
+    let store_path = local_google_store_path(&app)?;
+    anlg_calendar::local_google::get_status(&store_path).map_err(Into::into)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn save_local_google_calendar_credentials<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    client_id_or_json: String,
+    client_secret: Option<String>,
+) -> Result<anlg_calendar::LocalGoogleStatus, Error> {
+    let store_path = local_google_store_path(&app)?;
+    anlg_calendar::local_google::save_credentials(
+        &store_path,
+        &client_id_or_json,
+        client_secret.as_deref(),
+    )
+    .map_err(Into::into)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn connect_local_google_calendar<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<anlg_calendar::LocalGoogleAccountSummary, Error> {
+    use tauri_specta::Event as _;
+    let store_path = local_google_store_path(&app)?;
+    let summary = anlg_calendar::local_google::connect_account(&store_path).await?;
+    let _ = crate::CalendarChangedEvent.emit(&app);
+    Ok(summary)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn disconnect_local_google_calendar<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    connection_id: String,
+) -> Result<(), Error> {
+    use tauri_specta::Event as _;
+    let store_path = local_google_store_path(&app)?;
+    anlg_calendar::local_google::disconnect_account(&store_path, &connection_id)?;
+    let _ = crate::CalendarChangedEvent.emit(&app);
+    Ok(())
+}
+
+fn local_google_store_path<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<std::path::PathBuf, Error> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| anlg_calendar::Error::Api(format!("Failed to resolve app data dir: {e}")))?;
+    Ok(anlg_calendar::local_google::store_path_for_dir(&dir))
 }
 
 #[tauri::command]

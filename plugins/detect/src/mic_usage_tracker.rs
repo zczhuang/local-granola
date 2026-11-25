@@ -6,7 +6,24 @@ use tokio_util::sync::CancellationToken;
 use crate::{DetectEvent, ProcessorState, env::Env, timer_registry::TimerRegistry};
 
 pub(crate) const DEFAULT_MIC_ACTIVE_THRESHOLD_SECS: u64 = 15;
+pub(crate) const MEETING_APP_MIC_THRESHOLD_SECS: u64 = 3;
 pub(crate) const COOLDOWN_DURATION: Duration = Duration::from_mins(10);
+
+const DEDICATED_MEETING_APP_IDS: &[&str] = &[
+    "us.zoom.xos",
+    "us.zoom.videomeetings",
+    "com.microsoft.teams2",
+    "com.microsoft.teams",
+    "Cisco-Systems.Spark",
+];
+
+pub(crate) fn effective_threshold_secs(app_id: &str, configured_threshold_secs: u64) -> u64 {
+    if DEDICATED_MEETING_APP_IDS.contains(&app_id) {
+        configured_threshold_secs.min(MEETING_APP_MIC_THRESHOLD_SECS)
+    } else {
+        configured_threshold_secs
+    }
+}
 
 #[derive(Default)]
 pub struct MicUsageTracker {
@@ -41,6 +58,10 @@ impl MicUsageTracker {
         if self.timers.cancel(app_id) {
             tracing::info!(app_id = %app_id, "cancelled_mic_active_timer");
         }
+    }
+
+    pub fn clear_cooldown(&mut self, app_id: &str) {
+        self.cooldowns.remove(app_id);
     }
 
     /// Removes the timer entry only if the generation matches,

@@ -79,13 +79,15 @@ fn handle_mic_started<E: Env>(
         let generation = guard
             .mic_usage_tracker
             .start_tracking(app.id.clone(), token.clone());
+        let app_threshold_secs =
+            mic_usage_tracker::effective_threshold_secs(&app.id, threshold_secs);
         mic_usage_tracker::spawn_timer(
             env.clone(),
             state.clone(),
             app.clone(),
             generation,
             token,
-            threshold_secs,
+            app_threshold_secs,
         );
     }
 }
@@ -100,6 +102,7 @@ fn handle_mic_stopped<E: Env>(
 
         for app in &apps {
             guard.mic_usage_tracker.cancel_app(&app.id);
+            guard.mic_usage_tracker.clear_cooldown(&app.id);
         }
     }
 

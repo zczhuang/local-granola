@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-disconnect-local-google-calendar"
+description = "Enables the disconnect_local_google_calendar command without any pre-configured scope."
+commands.allow = ["disconnect_local_google_calendar"]
+
+[[permission]]
+identifier = "deny-disconnect-local-google-calendar"
+description = "Denies the disconnect_local_google_calendar command without any pre-configured scope."
+commands.deny = ["disconnect_local_google_calendar"]

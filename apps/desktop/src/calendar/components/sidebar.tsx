@@ -51,6 +51,7 @@ import {
 } from "~/shared/hooks/useNativeContextMenu";
 import { usePermission } from "~/shared/hooks/usePermissions";
 import { useOpenIntegrationUrl } from "~/shared/integration";
+import { LOCAL_ONLY } from "~/shared/local-only";
 
 function getProviderBadgeClassName(badge: string) {
   if (badge === "Beta") {
@@ -68,6 +69,7 @@ function getDefaultOpenProviderIds(
     .filter(
       (provider) =>
         !provider.nangoIntegrationId ||
+        (LOCAL_ONLY && provider.id === "google") ||
         connections?.some(
           (connection) =>
             connection.integration_id === provider.nangoIntegrationId,
@@ -239,12 +241,14 @@ function ProviderAccordionItem({
       (connection) => connection.integration_id === provider.nangoIntegrationId,
     ) ?? [];
 
-  const requiresPro = !!provider.nangoIntegrationId && !isPro;
+  const isLocalGoogle = LOCAL_ONLY && provider.id === "google";
+  const requiresPro = !!provider.nangoIntegrationId && !isLocalGoogle && !isPro;
   const appleNeedsPermission =
     provider.id === "apple" && calendar.status !== "authorized";
 
   const canAddAccount =
     !!provider.nangoIntegrationId &&
+    !isLocalGoogle &&
     !!auth.session &&
     isPaid &&
     !isPending &&

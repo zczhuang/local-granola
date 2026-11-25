@@ -18,6 +18,7 @@ import type { Tab } from "~/store/zustand/tabs";
 const mocks = vi.hoisted(() => ({
   isPro: true,
   isReady: true,
+  localOnly: false,
   canStart: true,
   liveStatus: "inactive",
   getIgnoredEventSets: vi.fn(),
@@ -35,6 +36,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("~/auth/billing-context", () => ({
   useBillingAccess: () => ({ isPro: mocks.isPro, isReady: mocks.isReady }),
+}));
+
+vi.mock("~/shared/local-only", () => ({
+  get LOCAL_ONLY() {
+    return mocks.localOnly;
+  },
 }));
 
 const startScheduledMeeting = (row: ScheduledMeetingRow, autoJoin: boolean) =>
@@ -860,5 +867,26 @@ describe("getScheduledAutoStartAction", () => {
     { status: "active" as const, expected: "skip" },
   ])("returns $expected for a $status live session", ({ status, expected }) => {
     expect(getScheduledAutoStartAction(status)).toBe(expected);
+  });
+});
+
+describe("ScheduledMeetingAutoStart local-only gating", () => {
+  afterEach(() => {
+    cleanup();
+    mocks.isPro = true;
+    mocks.isReady = true;
+    mocks.localOnly = false;
+    mocks.subscribeMeetings.mockClear();
+  });
+
+  test("mounts scheduled auto-start in LOCAL_ONLY even without Pro billing", () => {
+    mocks.isPro = false;
+    mocks.isReady = false;
+    mocks.localOnly = true;
+    mocks.subscribeMeetings.mockResolvedValue(() => Promise.resolve());
+    mocks.listenDetectEvent.mockResolvedValue(() => {});
+
+    render(createElement(ScheduledMeetingAutoStart));
+    expect(mocks.subscribeMeetings).toHaveBeenCalled();
   });
 });

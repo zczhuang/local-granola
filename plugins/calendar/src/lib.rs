@@ -43,6 +43,10 @@ fn make_specta_builder<R: tauri::Runtime>() -> tauri_specta::Builder<R> {
             commands::reorder_pinned_contacts::<tauri::Wry>,
             commands::merge_humans::<tauri::Wry>,
             commands::apply_contact_enhancement::<tauri::Wry>,
+            commands::get_local_google_calendar_status::<tauri::Wry>,
+            commands::save_local_google_calendar_credentials::<tauri::Wry>,
+            commands::connect_local_google_calendar::<tauri::Wry>,
+            commands::disconnect_local_google_calendar::<tauri::Wry>,
         ])
         .events(tauri_specta::collect_events![CalendarChangedEvent])
         .error_handling(tauri_specta::ErrorHandlingMode::Result)

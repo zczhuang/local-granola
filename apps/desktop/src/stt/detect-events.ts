@@ -52,9 +52,43 @@ type PendingAutoStop = {
   networkHoldUntilMs?: number;
 };
 
+function selectNearbyEventForApps(
+  nearbyEvents: NearbyEvent[],
+  apps: readonly { id: string }[],
+): NearbyEvent | null {
+  if (nearbyEvents.length === 0) {
+    return null;
+  }
+  const hasZoom = apps.some(
+    (app) =>
+      app.id === "us.zoom.xos" || app.id === "us.zoom.videomeetings",
+  );
+  if (hasZoom) {
+    const zoomEvent = nearbyEvents.find((event) =>
+      event.meetingLink?.toLowerCase().includes("zoom.us"),
+    );
+    if (zoomEvent) {
+      return zoomEvent;
+    }
+  }
+  const hasTeams = apps.some(
+    (app) =>
+      app.id === "com.microsoft.teams2" || app.id === "com.microsoft.teams",
+  );
+  if (hasTeams) {
+    const teamsEvent = nearbyEvents.find((event) =>
+      event.meetingLink?.toLowerCase().includes("teams."),
+    );
+    if (teamsEvent) {
+      return teamsEvent;
+    }
+  }
+  return nearbyEvents[0] ?? null;
+}
+
 function getMicDetectedNotificationTitle(event: NearbyEvent | null): string {
   if (!event) {
-    return "Are you in a meeting?";
+    return "Meeting detected";
   }
 
   if (event.participantNames.length === 1) {
@@ -435,7 +469,10 @@ export const useHandleDetectEvents = (store: ListenerStore) => {
                 Date.now(),
                 15 * 60 * 1000,
               );
-              const nearbyEvent = nearbyEvents[0] ?? null;
+              const nearbyEvent = selectNearbyEventForApps(
+                nearbyEvents,
+                payload.apps,
+              );
               const browserMeetingPlatform = getBrowserMeetingPlatform(
                 payload.apps,
                 nearbyEvent,
@@ -476,11 +513,16 @@ export const useHandleDetectEvents = (store: ListenerStore) => {
                 return;
               }
 
+              const appSubtitle = displayApps
+                .map((app) => getNotificationAppName(app))
+                .filter(Boolean)
+                .join(", ");
+
               await notificationCommands.showNotification({
                 key: payload.key,
                 title: getMicDetectedNotificationTitle(nearbyEvent),
-                message: "",
-                timeout: { secs: 15, nanos: 0 },
+                message: nearbyEvent ? "" : appSubtitle,
+                timeout: { secs: 20, nanos: 0 },
                 source: {
                   type: "mic_detected",
                   app_names: displayApps.map((app) =>
@@ -492,7 +534,7 @@ export const useHandleDetectEvents = (store: ListenerStore) => {
                 start_time: null,
                 participants: null,
                 event_details: null,
-                action_label: "Yes",
+                action_label: nearbyEvent ? "Take notes" : "Take notes",
                 action: null,
                 action_menu: null,
                 action_variant: null,

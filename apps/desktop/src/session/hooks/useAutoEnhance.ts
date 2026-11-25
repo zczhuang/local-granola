@@ -29,7 +29,7 @@ export function useAutoEnhance(tab: Extract<Tab, { type: "sessions" }>) {
           (t): t is Extract<Tab, { type: "sessions" }> =>
             t.type === "sessions" && t.id === sessionId,
         );
-        if (sessionTab && sessionTab.state.view?.type !== "transcript") {
+        if (sessionTab) {
           tabsState.updateSessionTabState(sessionTab, {
             ...sessionTab.state,
             view: { type: "enhanced", id: event.noteId },

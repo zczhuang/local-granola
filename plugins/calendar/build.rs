@@ -23,6 +23,10 @@ const COMMANDS: &[&str] = &[
     "reorder_pinned_contacts",
     "merge_humans",
     "apply_contact_enhancement",
+    "get_local_google_calendar_status",
+    "save_local_google_calendar_credentials",
+    "connect_local_google_calendar",
+    "disconnect_local_google_calendar",
 ];
 
 fn main() {

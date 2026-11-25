@@ -338,8 +338,11 @@ fn convert_apple_event(event: AppleEvent) -> CalendarEvent {
         None
     };
 
-    let meeting_link =
-        resolve_meeting_link(None, event.location.as_deref(), event.notes.as_deref());
+    let meeting_link = resolve_meeting_link(
+        event.url.as_deref().and_then(crate::parse_meeting_link),
+        event.location.as_deref(),
+        event.notes.as_deref(),
+    );
 
     CalendarEvent {
         id,
