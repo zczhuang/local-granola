@@ -1,162 +1,110 @@
-> **local-granola:** this is a private personal fork of [fastrepl/anarlog](https://github.com/fastrepl/anarlog) (MIT, see `LICENSE`), changed to run fully locally on one Mac with Ollama. See [SETUP.md](SETUP.md). The upstream README follows.
-
-> **Note:** The team is now building **[char](https://char.com)**. The **anarlog** community application remains open-source, MIT-licensed, and maintained as the local-first meeting notetaker in this repo. Source-visible enterprise components are commercially licensed.
-
 <div align="center">
 
-<img width="110" src="apps/desktop/src-tauri/icons/stable/128x128@2x.png" alt="anarlog icon" />
+<img width="128" src="assets/oatmeal-logo.png" alt="Oatmeal logo" />
 
-<h1>anarlog</h1>
-
-<p>
-    <b>The privacy-first AI meeting notepad.</b>
-    <br />
-    Open source, local-first, and yours to fork. Granola, rearranged.
-  </p>
+<h1>Oatmeal</h1>
 
 <p>
-    <a href="https://anarlog.so">Website</a>
-    &nbsp;•&nbsp;
-    <a href="https://docs.anarlog.so">Docs</a>
-    &nbsp;•&nbsp;
-    <a href="https://anarlog.so/download">Download</a>
-    &nbsp;•&nbsp;
-    <a href="https://anarlog.so/discord">Discord</a>
-    &nbsp;•&nbsp;
-    <a href="https://www.reddit.com/r/anarlog/">r/anarlog</a>
-    &nbsp;•&nbsp;
-    <a href="https://x.com/anarlogapp">@anarlogapp</a>
-  </p>
+  <b>A local-only AI meeting notepad for Apple Silicon Macs.</b>
+  <br />
+  Granola-style notes, live on-device transcription, Ollama summaries, and MCP — without sending your meetings to the cloud.
+</p>
 
 <p>
-    <a href="https://github.com/fastrepl/anarlog/stargazers"><img src="https://img.shields.io/github/stars/fastrepl/anarlog?style=flat&color=ffe09d" alt="GitHub stars" /></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-black" alt="MIT license" /></a>
-    <a href="https://anarlog.so/discord"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
-    <a href="https://deepwiki.com/fastrepl/anarlog"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki" /></a>
-  </p>
-
-<img width="100%" src="apps/web/public/og.jpg" alt="anarlog" />
+  <a href="https://github.com/zczhuang/oatmeal/stargazers"><img src="https://img.shields.io/github/stars/zczhuang/oatmeal?style=flat&color=d9a05b" alt="GitHub stars" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2b2118" alt="MIT license" /></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-f7f1e5?labelColor=2b2118" alt="macOS Apple Silicon" />
+  <img src="https://img.shields.io/badge/built%20on-Anarlog-e8dcc8?labelColor=2b2118" alt="Built on Anarlog" />
+</p>
 
 </div>
 
 <br />
 
-anarlog is an open-source alternative to Granola. It takes notes in your meetings without sending a bot to join the call: it listens to your device audio, can transcribe on your machine, and keeps app data in a local SQLite database.
+> **Built on [Anarlog](https://github.com/fastrepl/anarlog):** Oatmeal is an open-source, local-only fork of **[Anarlog](https://github.com/fastrepl/anarlog)** by [Fastrepl](https://github.com/fastrepl) (MIT, see [`LICENSE`](LICENSE)). Full credit for the core desktop app, audio capture architecture, editor, and database goes to the Anarlog / Hyprnote team.
 
-It is built for people who want AI meeting notes without handing their conversations to someone else's cloud, and for anyone who needs to get a notetaker past a security review with a straight face.
+## What Oatmeal does
 
-## Why anarlog
+Oatmeal captures meeting audio directly on your Mac (no bot joins your call), transcribes live on Apple Silicon, enhances your typed notes using a local [Ollama](https://ollama.com) model, and exposes your meeting history to coding agents via a read-only local MCP server.
 
-- **No bot joins your call.** anarlog captures audio directly on your device. Nothing appears in the participant list, and nothing records from inside the meeting.
-- **Local when you choose it.** On supported Macs, available built-in transcription models run on-device. Local Intelligence providers keep summaries and chat on your computer too.
-- **Your data, in a format you can read.** Sessions, notes, and transcripts live in local SQLite. Recordings and attachments are plain local files. Export Markdown whenever it fits your workflow.
-- **Bring your own AI.** Use a supported hosted provider, your own API key, or an OpenAI-compatible local server such as Ollama, LM Studio, or Unsloth.
-- **Readable source, MIT.** The community application is MIT-licensed. Fork it, audit it, sell it, or build it yourself.
-- **Cloud is opt-in, not required.** Hosted AI, encrypted CloudSync, and sharing exist when you want them. Nothing depends on them.
-- **A front door for your org.** Source-visible enterprise components and commercial deployment options give security and IT teams a real path to yes.
+### Key features
+
+- **100% local audio, transcription, and summaries (`LOCAL_ONLY`):**
+  - Telemetry, crash reporting, cloud sync, hosted STT/LLM providers, sign-in, and auto-updates are locked off at build time.
+  - **Live transcription** runs on-device with **Parakeet v3 Live** (Neural Engine) or **Apple Speech**, with an optional **Whisper large-v3-turbo** post-meeting pass for Mandarin or mixed-language meetings.
+  - **Enhanced notes** run through local **Ollama** (e.g. `gemma4:26b-mlx` or `gemma4:12b-mlx`), keep your typed lines verbatim as the outline, attach clickable timestamped transcript citations under each bullet, match the transcript's spoken language, and automatically chunk multi-hour meetings.
+- **Granola-style meeting detection & auto-summary:**
+  - Detects active Zoom, Microsoft Teams, Webex, and Slack calls within ~3 seconds (`Meeting detected` → `Take notes`).
+  - Automatically stops capture ~5 seconds after the meeting ends and switches straight into **Summary** mode.
+- **Direct local Google Calendar & Apple Calendar sync:**
+  - Connects directly to Google Calendar API v3 from your Mac using your own Google Cloud Desktop OAuth 2.0 credentials (PKCE + loopback) with zero cloud relay, alongside native Apple Calendar support and scheduled meeting auto-start/auto-join.
+- **Speaker labeling:**
+  - Separates microphone ("you") and system audio ("remote") channels, reads Zoom/Teams speaking cues via macOS Accessibility, and combines them with voiceprints and calendar attendees.
+- **Local MCP server for AI coding agents:**
+  - Built-in stdio MCP server (`oatmeal-mcp`) works out of the box with **Claude Code**, **Codex**, **Antigravity**, and **Claude Desktop** — read-only by default over your local SQLite database.
 
 ## What runs where
 
-| Part of the workflow         | Where it happens                                                  |
-| ---------------------------- | ----------------------------------------------------------------- |
-| Audio capture and recording  | Your device                                                       |
-| Transcription                | Your device with an on-device model, or the provider you select   |
-| Notes and transcript storage | Local SQLite plus local files                                     |
-| AI summaries and chat        | Your choice: local model, your own API key, or optional hosted AI |
-| Sync and sharing             | Off by default, opt-in encrypted CloudSync                        |
+| Stage | Where it runs |
+| --- | --- |
+| Audio capture & recording | Your Mac (Core Audio tap + mic, no call bot) |
+| Live transcription | On-device (Parakeet v3 Live / Apple Speech) |
+| Post-meeting Mandarin/mixed pass | On-device (Whisper large-v3-turbo, optional) |
+| Enhanced notes & summaries | Local Ollama (`127.0.0.1:11434`) |
+| Notes, transcripts & audio | Local SQLite (`~/Library/Application Support/anarlog/app.db`) |
+| Calendar sync (optional) | Local Apple Calendar, or direct local Google Calendar OAuth |
+| Agent access (MCP) | Local stdio process (read-only by default, no network listener) |
 
-## How AI works
+## Quick start (macOS Apple Silicon)
 
-anarlog keeps audio transcription separate from the language model used for summaries and chat. You can change either one without changing the other.
+See **[SETUP.md](SETUP.md)** for full build, signing, and configuration instructions, and **[docs-local/MCP.md](docs-local/MCP.md)** for connecting Claude Code, Codex, Antigravity, or Claude Desktop.
 
-| Stage                                       | App setting       | Anarlog Cloud                                                                                                                                            | Local or bring your own                                                                   |
-| ------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Audio → transcript                          | **Transcription** | Managed **Pro (Cloud)** prefers Soniox 5 for live and batch transcription, with eligible fallbacks based on language and mode. | Soniqo or Apple Speech when available, or your selected transcription provider and model  |
-| Transcript + memo → summary, title, or chat | **Intelligence**  | Managed **Auto** (also shown as Pro (Cloud)) currently uses the latest Claude Sonnet alias through OpenRouter.                                           | Your selected API, subscription, OpenAI-compatible server, or eligible Apple Intelligence |
+```sh
+git clone https://github.com/zczhuang/oatmeal.git
+cd oatmeal
 
-The active provider and model are always visible under **Settings → Transcription** and **Settings → Intelligence**. Read [Models and providers](https://docs.anarlog.so/models-and-providers) for the current routes, local model list, and privacy boundaries.
+# Recommended if your parent folder path contains spaces:
+export CARGO_TARGET_DIR="$HOME/.cargo-target/oatmeal"
 
-## Get started
+# Pull a local notes model in Ollama
+ollama pull gemma4:26b-mlx   # or gemma4:12b-mlx for lower RAM usage
 
-1. [Download Anarlog](https://anarlog.so/download) for macOS, Windows, or Linux.
-2. Open it and join a meeting. anarlog records on your device and transcribes with the model you selected.
-3. Generate a note, edit it like a document, and export Markdown when you need it.
-4. Optional: connect an LLM provider or a local model in settings for summaries and chat.
+# Install dependencies and launch dev mode
+pnpm install
+pnpm dev:desktop
+```
 
-Product docs live at [docs.anarlog.so](https://docs.anarlog.so). To build the desktop app or website from source, follow [Local development](#local-development).
+### MCP setup (Claude Code, Codex, Antigravity)
+
+```sh
+cargo build --release -p anarlog-cli
+mkdir -p ~/.local/bin
+cp "$CARGO_TARGET_DIR/release/anarlog" ~/.local/bin/oatmeal-mcp
+codesign --force --sign - ~/.local/bin/oatmeal-mcp
+
+# Register in Claude Code
+claude mcp add --scope user oatmeal -- ~/.local/bin/oatmeal-mcp \
+  --db-path "$HOME/Library/Application Support/anarlog/app.db" mcp
+```
+
+See [docs-local/MCP.md](docs-local/MCP.md) for Codex (`~/.codex/config.toml`), Antigravity (`~/.gemini/config/mcp_config.json`), and Claude Desktop snippets.
 
 ## Repository map
 
-| Path               | What lives there                                                                           |
-| ------------------ | ------------------------------------------------------------------------------------------ |
-| `apps/desktop`     | Tauri v2 desktop app: React and TypeScript UI, Rust backend                                |
-| `apps/web`         | anarlog.so website, account portal, and shared-note pages; not the desktop notepad         |
-| `apps/api`         | Optional hosted services for AI, sync, sharing, and integrations                           |
-| `apps/cli`         | Local CLI and MCP server                                                                   |
-| `apps/mobile`      | iOS and Android client, available as a beta through TestFlight and Google Play             |
-| `apps/stripe`      | Billing integration                                                                        |
-| `apps/watch/apple` | watchOS companion source built with the mobile app                                         |
-| `plugins/*`        | Tauri capabilities such as local STT, database access, calendar, export, and notifications |
-| `crates/*`         | Rust libraries for audio capture, transcription, diarization, storage, and services        |
-| `packages/*`       | Shared TypeScript packages for the editor, database, UI, and plugin SDK                    |
-| `supabase/`        | Hosted authentication, sharing, sync, billing, and Cloud API data                          |
-| `skills/anarlog`   | Published agent skill for the CLI and MCP server                                           |
-| `enterprise/`      | Source-visible enterprise components, commercially licensed                                |
+| Path | Description |
+| --- | --- |
+| `apps/desktop` | Tauri v2 macOS desktop app (React/TypeScript UI + Rust backend) |
+| `apps/cli` | Local CLI and stdio MCP server (`anarlog-cli` / `oatmeal-mcp`) |
+| `crates/enhanced-notes` | Local Ollama note-enhancement engine, chunking, and transcript citations |
+| `crates/calendar` | Apple Calendar and direct local Google Calendar OAuth + API v3 client |
+| `crates/transcribe-soniqo` | On-device Parakeet v3 Live VAD-windowed transcription |
+| `plugins/*` | Tauri plugins for detection, transcription, calendar, templates, and storage |
+| `tools/meeting-capture` | Native Swift Core Audio & macOS Accessibility helper |
+| `docs-local/` | Oatmeal-specific local setup and MCP documentation |
 
-## Local development
+## Credits & License
 
-The local-first desktop app and website start without secrets. Hosted AI, CloudSync, authentication, billing, and connected integrations need their optional local services and configuration.
+Oatmeal is a fork of **[Anarlog](https://github.com/fastrepl/anarlog)** (originally Hyprnote), created and maintained by **[Fastrepl](https://github.com/fastrepl)**. Huge thanks to the Fastrepl team and all Anarlog contributors for open-sourcing the foundation under the MIT license.
 
-You need Node.js 22 or later, pnpm 11.1.1, Rust 1.94.0, [process-compose](https://f1bonacc1.github.io/process-compose/installation/) 1.122.0 or later (`brew install process-compose` on macOS), and the [Tauri v2 system dependencies](https://v2.tauri.app/start/prerequisites/). Apple Silicon Macs also need Xcode with its Metal Toolchain component to compile the MLX shader library (Xcode 26 and later: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -downloadComponent MetalToolchain`); the Command Line Tools alone are not enough. On Debian or Ubuntu, the repository can install the required toolchains and system packages:
-
-```bash
-bash scripts/setup-linux.sh
-```
-
-Install the workspace and start the app you want to work on:
-
-```bash
-pnpm install --frozen-lockfile
-pnpm dev:desktop
-# or
-pnpm dev:web
-```
-
-Process Compose builds shared UI first, manages the app processes, and saves logs under `.process-compose/`. Use `pnpm dev` for the combined desktop, web, API, and local Supabase stack after configuring the optional backend.
-
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for backend setup, process controls, validation commands, code ownership, and the contribution workflow. Ask [DeepWiki](https://deepwiki.com/fastrepl/anarlog) for a code-indexed explanation of a subsystem.
-
-## Name history
-
-**anarlog** started as **Hyprnote**, then briefly used the **char** name.
-
-We later split the work into two projects. **[char](https://char.com)** is the team's current productivity app. **anarlog** is this open-source, local-first meeting notetaker.
-
-This repository is not the current char codebase, and anarlog is not being retired. Its community application stays MIT-licensed, forkable, buildable from source, and built for local notes you control.
-
-If you came here from Granola, welcome. If you came here from Hyprnote, welcome back.
-
-Either way, it's yours.
-
-## Contributing
-
-Issues, pull requests, bug reports, and docs fixes are all welcome.
-
-- Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
-- Join the community on [Discord](https://anarlog.so/discord) or [r/anarlog](https://www.reddit.com/r/anarlog/).
-
-Contributions outside `enterprise/` are distributed under the MIT license.
-
-## License
-
-- Community application: [MIT](LICENSE)
-- Enterprise components: [commercial](LICENSE.enterprise)
-- Full boundary: [LICENSING.md](LICENSING.md)
-
-Maintained by [fastrepl](https://github.com/fastrepl).
-
-## Contributors
-
-<a href="https://github.com/fastrepl/anarlog/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=fastrepl/anarlog" alt="Contributors" />
-</a>
+- Community application & Oatmeal additions: **[MIT License](LICENSE)**
+- Upstream enterprise directory (`enterprise/`, unused in Oatmeal): [commercial](LICENSE.enterprise) — see [LICENSING.md](LICENSING.md)
