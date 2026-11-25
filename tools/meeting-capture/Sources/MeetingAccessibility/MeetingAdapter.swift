@@ -225,7 +225,12 @@ public enum MeetingAXAdapter {
           zoomCount = Int(match.1)
         }
         for row in descendants(lists[0]).filter({ $0.role == "AXRow" }) {
-          let names = descendants(row).filter { $0.role == "AXStaticText" }
+          // LOCAL-GRANOLA(mac-untested): a row's own "Talking"/"Not talking" text is its
+          // speaking state, not a second name, so it doesn't count against the one-name guard
+          // below. Assumed, not seen in a live Zoom call.
+          let names = descendants(row).filter {
+            $0.role == "AXStaticText" && speakingState(of: $0, in: []) == nil
+          }
           guard names.count == 1, let nameNode = names.first else { continue }
           let unique = Set(nameNode.labels)
           guard unique.count == 1, let label = unique.first, label.utf8.count <= 256 else {
