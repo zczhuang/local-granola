@@ -6,6 +6,8 @@ permissions = [
   "allow-prepare-generated-summary",
   "allow-compose-generated-summary",
   "allow-save-generated-summary",
+  "allow-enhance-local",
+  "allow-enhance-local-is-stale",
   "allow-save-generated-title",
   "allow-apply-session-content-corrections",
   "allow-render",

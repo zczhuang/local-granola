@@ -9,6 +9,8 @@ Default permissions for the plugin
 - `allow-prepare-generated-summary`
 - `allow-compose-generated-summary`
 - `allow-save-generated-summary`
+- `allow-enhance-local`
+- `allow-enhance-local-is-stale`
 - `allow-save-generated-title`
 - `allow-apply-session-content-corrections`
 - `allow-render`
@@ -99,6 +101,58 @@ Enables the dominant_language command without any pre-configured scope.
 <td>
 
 Denies the dominant_language command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`template:allow-enhance-local`
+
+</td>
+<td>
+
+Enables the enhance_local command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`template:deny-enhance-local`
+
+</td>
+<td>
+
+Denies the enhance_local command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`template:allow-enhance-local-is-stale`
+
+</td>
+<td>
+
+Enables the enhance_local_is_stale command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`template:deny-enhance-local-is-stale`
+
+</td>
+<td>
+
+Denies the enhance_local_is_stale command without any pre-configured scope.
 
 </td>
 </tr>

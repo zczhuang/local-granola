@@ -72,6 +72,8 @@ describe("buildInputRules", () => {
                 checked: false,
                 taskId: expect.any(String),
                 taskItemId: expect.any(String),
+                aiId: null,
+                src: null,
               },
               content: [{ type: "paragraph" }],
             },
@@ -116,6 +118,8 @@ describe("buildInputRules", () => {
                   checked: true,
                   taskId: expect.any(String),
                   taskItemId: expect.any(String),
+                  aiId: null,
+                  src: null,
                 },
                 content: [{ type: "paragraph" }],
               },
@@ -146,6 +150,8 @@ describe("buildInputRules", () => {
                 checked: false,
                 taskId: expect.any(String),
                 taskItemId: expect.any(String),
+                aiId: null,
+                src: null,
               },
               content: [
                 {
@@ -182,6 +188,7 @@ describe("buildInputRules", () => {
           content: [
             {
               type: "listItem",
+              attrs: { aiId: null, src: null },
               content: [
                 {
                   type: "paragraph",
@@ -201,6 +208,8 @@ describe("buildInputRules", () => {
                 checked: false,
                 taskId: expect.any(String),
                 taskItemId: expect.any(String),
+                aiId: null,
+                src: null,
               },
               content: [{ type: "paragraph" }],
             },
@@ -242,6 +251,7 @@ describe("buildInputRules", () => {
           content: [
             {
               type: "listItem",
+              attrs: { aiId: null, src: null },
               content: [
                 {
                   type: "paragraph",
@@ -261,6 +271,8 @@ describe("buildInputRules", () => {
                 checked: false,
                 taskId: expect.any(String),
                 taskItemId: expect.any(String),
+                aiId: null,
+                src: null,
               },
               content: [{ type: "paragraph" }],
             },
@@ -272,6 +284,7 @@ describe("buildInputRules", () => {
           content: [
             {
               type: "listItem",
+              attrs: { aiId: null, src: null },
               content: [
                 {
                   type: "paragraph",
@@ -295,6 +308,8 @@ describe("buildInputRules", () => {
             checked: false,
             taskId: "task-1",
             taskItemId: "task-item-1",
+            aiId: null,
+            src: null,
           },
           [schema.node("paragraph", null, [schema.text("first")])],
         ),
@@ -312,6 +327,8 @@ describe("buildInputRules", () => {
             checked: true,
             taskId: "task-2",
             taskItemId: "task-item-2",
+            aiId: null,
+            src: null,
           },
           [schema.node("paragraph", null, [schema.text("last")])],
         ),
@@ -337,6 +354,8 @@ describe("buildInputRules", () => {
                 checked: false,
                 taskId: "task-1",
                 taskItemId: "task-item-1",
+                aiId: null,
+                src: null,
               },
               content: [
                 {
@@ -352,6 +371,8 @@ describe("buildInputRules", () => {
                 checked: false,
                 taskId: expect.any(String),
                 taskItemId: expect.any(String),
+                aiId: null,
+                src: null,
               },
               content: [{ type: "paragraph" }],
             },
@@ -362,6 +383,8 @@ describe("buildInputRules", () => {
                 checked: true,
                 taskId: "task-2",
                 taskItemId: "task-item-2",
+                aiId: null,
+                src: null,
               },
               content: [
                 {
@@ -583,6 +606,8 @@ describe("buildKeymap", () => {
             checked: false,
             taskId: "task-1",
             taskItemId: "task-item-1",
+            aiId: null,
+            src: null,
           },
           [schema.node("paragraph", null, [schema.text("one")])],
         ),
@@ -593,6 +618,8 @@ describe("buildKeymap", () => {
             checked: false,
             taskId: "task-2",
             taskItemId: "task-item-2",
+            aiId: null,
+            src: null,
           },
           [schema.node("paragraph", null, [schema.text("two")])],
         ),
@@ -613,6 +640,8 @@ describe("buildKeymap", () => {
                 checked: false,
                 taskId: "task-1",
                 taskItemId: "task-item-1",
+                aiId: null,
+                src: null,
               },
               content: [
                 {
@@ -642,6 +671,8 @@ describe("buildKeymap", () => {
             checked: false,
             taskId: "task-1",
             taskItemId: "task-item-1",
+            aiId: null,
+            src: null,
           },
           [schema.node("paragraph", null, [schema.text("two")])],
         ),
@@ -657,6 +688,7 @@ describe("buildKeymap", () => {
           content: [
             {
               type: "listItem",
+              attrs: { aiId: null, src: null },
               content: [
                 {
                   type: "paragraph",
@@ -684,6 +716,8 @@ describe("buildKeymap", () => {
             checked: false,
             taskId: "task-1",
             taskItemId: "task-item-1",
+            aiId: null,
+            src: null,
           },
           [schema.node("paragraph", null, [schema.text("two")])],
         ),
@@ -694,6 +728,8 @@ describe("buildKeymap", () => {
             checked: false,
             taskId: "task-2",
             taskItemId: "task-item-2",
+            aiId: null,
+            src: null,
           },
           [schema.node("paragraph", null, [schema.text("three")])],
         ),
@@ -718,6 +754,8 @@ describe("buildKeymap", () => {
                 checked: false,
                 taskId: "task-2",
                 taskItemId: "task-item-2",
+                aiId: null,
+                src: null,
               },
               content: [
                 {
@@ -742,6 +780,8 @@ describe("buildKeymap", () => {
             checked: true,
             taskId: "task-1",
             taskItemId: "task-item-1",
+            aiId: null,
+            src: null,
           },
           [schema.node("paragraph", null, [schema.text("done")])],
         ),
@@ -763,6 +803,8 @@ describe("buildKeymap", () => {
       checked: true,
       taskId: "task-1",
       taskItemId: "task-item-1",
+      aiId: null,
+      src: null,
     });
     expect(items[1]?.attrs).toMatchObject({ status: "todo", checked: false });
     expect(items[1]?.attrs?.taskId).not.toBe("task-1");
@@ -780,6 +822,8 @@ describe("buildKeymap", () => {
             checked: false,
             taskId: "task-1",
             taskItemId: "task-item-1",
+            aiId: null,
+            src: null,
           },
           [schema.node("paragraph", null, [schema.text("task")])],
         ),
@@ -806,6 +850,8 @@ describe("buildKeymap", () => {
                 checked: false,
                 taskId: "task-1",
                 taskItemId: "task-item-1",
+                aiId: null,
+                src: null,
               },
               content: [
                 {
@@ -916,6 +962,8 @@ describe("buildKeymap", () => {
             checked: false,
             taskId: "task-1",
             taskItemId: "task-item-1",
+            aiId: null,
+            src: null,
           },
           [schema.node("paragraph", null, [schema.text("one")])],
         ),
@@ -926,6 +974,8 @@ describe("buildKeymap", () => {
             checked: false,
             taskId: "task-2",
             taskItemId: "task-item-2",
+            aiId: null,
+            src: null,
           },
           [
             schema.node("paragraph", null, [schema.text("two")]),
@@ -949,6 +999,8 @@ describe("buildKeymap", () => {
                 checked: false,
                 taskId: "task-1",
                 taskItemId: "task-item-1",
+                aiId: null,
+                src: null,
               },
               content: [
                 {
@@ -964,6 +1016,8 @@ describe("buildKeymap", () => {
                 checked: false,
                 taskId: "task-2",
                 taskItemId: "task-item-2",
+                aiId: null,
+                src: null,
               },
               content: [
                 {

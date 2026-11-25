@@ -40,6 +40,9 @@ export default defineConfig(() => ({
     ],
   },
   test: {
+    // The suite exercises hosted code paths; local-only behavior is tested
+    // explicitly with vi.stubEnv("VITE_LOCAL_ONLY", "true").
+    env: { VITE_LOCAL_ONLY: "false" },
     reporters: "default",
     environment: "jsdom",
     setupFiles: ["./src/test-setup.ts"],

@@ -1,6 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
+import { Input } from "@anlg/ui/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -9,6 +10,13 @@ import {
   SelectValue,
 } from "@anlg/ui/components/ui/select";
 
+import {
+  audioRetentionDays,
+  controlsToRetention,
+  MAX_AUDIO_RETENTION_DAYS,
+  normalizeAudioRetention,
+  retentionToControls,
+} from "~/services/audio-retention-policy";
 import {
   SETTING_CONTROL_CLASS,
   SettingRow,
@@ -123,15 +131,6 @@ export function AudioDeviceRow({
   );
 }
 
-const AUDIO_RETENTION_OPTIONS = [
-  "none",
-  "oneDay",
-  "threeDays",
-  "oneWeek",
-  "oneMonth",
-  "forever",
-] as const;
-
 function AudioRetentionRow({
   value,
   onChange,
@@ -140,36 +139,59 @@ function AudioRetentionRow({
   onChange: (value: string) => void;
 }) {
   const { t } = useLingui();
-  const copyByValue = {
-    none: t`Don't save`,
-    oneDay: t`1 day`,
-    threeDays: t`3 days`,
-    oneWeek: t`1 week`,
-    oneMonth: t`1 month`,
-    forever: t`Forever`,
-  } as const;
+  const controls = retentionToControls(normalizeAudioRetention(value));
+  const [draftDays, setDraftDays] = useState<string | null>(null);
+  const shownDays = draftDays ?? (controls.days === null ? "" : controls.days);
 
   return (
-    <SettingRow
-      title={<Trans>Audio file retention</Trans>}
-      description={
-        <Trans>Choose how long recordings stay on this device.</Trans>
-      }
-    >
-      {(labelProps) => (
-        <Select value={value} onValueChange={onChange}>
-          <SelectTrigger {...labelProps} className={SETTING_CONTROL_CLASS}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {AUDIO_RETENTION_OPTIONS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {copyByValue[option]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <>
+      <SettingSwitchRow
+        title={<Trans>Delete audio after transcription</Trans>}
+        description={
+          <Trans>
+            Remove the recording from this device as soon as the transcript is
+            done. Transcripts and notes are kept.
+          </Trans>
+        }
+        checked={controls.deleteAfter}
+        onChange={(deleteAfter) => {
+          setDraftDays(null);
+          onChange(controlsToRetention({ deleteAfter, days: null }));
+        }}
+      />
+      {controls.deleteAfter && (
+        <SettingRow
+          title={<Trans>Keep audio for (days)</Trans>}
+          description={
+            <Trans>
+              Optional. Leave empty to delete right after transcription.
+            </Trans>
+          }
+        >
+          {(labelProps) => (
+            <Input
+              {...labelProps}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={MAX_AUDIO_RETENTION_DAYS}
+              step={1}
+              placeholder={t`Delete immediately`}
+              className={SETTING_CONTROL_CLASS}
+              value={shownDays}
+              onChange={(event) => {
+                const text = event.target.value;
+                setDraftDays(text);
+                const days = text.trim() === "" ? null : Number(text);
+                if (days === null || audioRetentionDays(days) !== null) {
+                  onChange(controlsToRetention({ deleteAfter: true, days }));
+                }
+              }}
+              onBlur={() => setDraftDays(null)}
+            />
+          )}
+        </SettingRow>
       )}
-    </SettingRow>
+    </>
   );
 }

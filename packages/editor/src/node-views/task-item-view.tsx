@@ -14,6 +14,46 @@ import {
 import { getSafeNodePos } from "./error-boundary";
 import { TaskCheckbox } from "./task-checkbox";
 
+export type AiLineSource = {
+  t: string;
+  s: string;
+  e: string;
+  a: number;
+  b: number;
+};
+
+export function parseAiLineAttrs(element: HTMLElement): {
+  aiId: string | null;
+  src: AiLineSource[] | null;
+} {
+  const aiId = element.getAttribute("data-ai-id");
+  let src: AiLineSource[] | null = null;
+  const raw = element.getAttribute("data-src");
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) src = parsed;
+    } catch {
+      src = null;
+    }
+  }
+  return { aiId: aiId || null, src };
+}
+
+/** DOM attributes for an AI line: `ai-line` class plus `data-ai-id`/`data-src`. */
+export function aiLineDomAttrs(
+  attrs: Record<string, unknown>,
+): Record<string, string> {
+  const aiId = attrs.aiId as string | null | undefined;
+  if (!aiId) return {};
+  const out: Record<string, string> = {
+    class: "ai-line",
+    "data-ai-id": aiId,
+  };
+  if (attrs.src) out["data-src"] = JSON.stringify(attrs.src);
+  return out;
+}
+
 export const taskListNodeSpec: NodeSpec = {
   content: "taskItem+",
   group: "block",
@@ -31,6 +71,8 @@ export const taskItemNodeSpec: NodeSpec = {
     checked: { default: false },
     taskId: { default: null },
     taskItemId: { default: null },
+    aiId: { default: null },
+    src: { default: null },
   },
   parseDOM: [
     {
@@ -45,6 +87,7 @@ export const taskItemNodeSpec: NodeSpec = {
           ...createTaskStatusAttrs(status),
           taskId: element.getAttribute("data-task-id"),
           taskItemId: element.getAttribute("data-task-item-id"),
+          ...parseAiLineAttrs(element),
         };
       },
     },
@@ -59,6 +102,7 @@ export const taskItemNodeSpec: NodeSpec = {
         "data-checked": status === "done" ? "true" : "false",
         "data-task-id": node.attrs.taskId,
         "data-task-item-id": node.attrs.taskItemId,
+        ...aiLineDomAttrs(node.attrs),
       },
       0,
     ];
@@ -72,6 +116,8 @@ export const TaskItemView = forwardRef<
   const { node, getPos } = nodeProps;
   const status = normalizeTaskStatus(node.attrs.status, node.attrs.checked);
   const taskId = node.attrs.taskId as string | null;
+  const aiId = (node.attrs.aiId as string | null | undefined) ?? undefined;
+  const aiSrc = node.attrs.src ? JSON.stringify(node.attrs.src) : undefined;
   const isSelected = useIsNodeSelected();
 
   const handleToggle = useEditorEventCallback((view) => {
@@ -91,6 +137,13 @@ export const TaskItemView = forwardRef<
     <li
       ref={ref}
       {...htmlAttrs}
+      className={
+        aiId
+          ? [htmlAttrs.className, "ai-line"].filter(Boolean).join(" ")
+          : htmlAttrs.className
+      }
+      data-ai-id={aiId}
+      data-src={aiSrc}
       data-type="taskItem"
       data-status={status}
       data-checked={status === "done" ? "true" : "false"}

@@ -5,6 +5,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { isUserError, isUserErrorEvent } from "@anlg/user-error";
 
 import { env } from "./env";
+import { LOCAL_ONLY } from "./shared/local-only";
 import { commands as desktopCommands } from "./types/tauri.gen";
 
 type ErrorContextValue = null | boolean | number | string;
@@ -214,7 +215,7 @@ export function sanitizeErrorEvent(event: ErrorEvent): ErrorEvent | null {
 }
 
 export function initializeErrorReporting() {
-  if (!env.VITE_SENTRY_DSN) return;
+  if (LOCAL_ONLY || !env.VITE_SENTRY_DSN) return;
 
   Sentry.init({
     dsn: env.VITE_SENTRY_DSN,

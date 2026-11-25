@@ -94,6 +94,14 @@ pub struct LivePartial {
     pub source: String,
     pub text: String,
     pub is_final: bool,
+    /// Position of this text on the source's own audio clock. Set by windowed
+    /// live models, where the text arrives some time after the audio; the
+    /// native streaming sessions leave it empty and callers use the append
+    /// chunk's position instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_seconds: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_seconds: Option<f64>,
 }
 
 impl LivePartial {
@@ -111,6 +119,8 @@ impl LivePartial {
         duration: f64,
     ) -> stream::StreamResponse {
         let source = self.source();
+        let start = self.start_seconds.unwrap_or(start);
+        let duration = self.duration_seconds.unwrap_or(duration);
         stream_response_from_text(
             model,
             self.text,

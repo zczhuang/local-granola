@@ -55,6 +55,29 @@ pub fn render_transcripts_markdown(export: &MeetingExport) -> String {
         .join("\n\n")
 }
 
+/// Maps each stored word id to the speaker label the desktop transcript view
+/// would show. Words without rendered segments (flat or partial transcripts)
+/// are absent from the map.
+pub(crate) fn speaker_labels_by_word_id(export: &MeetingExport) -> HashMap<String, String> {
+    let renderable = export
+        .transcripts
+        .iter()
+        .filter_map(normalize_transcript)
+        .collect::<Vec<_>>();
+    if renderable.is_empty() {
+        return HashMap::new();
+    }
+    let mut labels = HashMap::new();
+    for segment in render_transcript_segments(build_render_request(export, renderable)) {
+        for word in &segment.words {
+            if let Some(id) = &word.id {
+                labels.insert(id.clone(), segment.speaker_label.clone());
+            }
+        }
+    }
+    labels
+}
+
 pub(crate) fn render_flat_transcripts(transcripts: &[Transcript]) -> String {
     transcripts
         .iter()

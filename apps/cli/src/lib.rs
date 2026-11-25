@@ -7,6 +7,7 @@ mod db;
 mod error;
 mod mcp;
 mod output;
+mod preview;
 
 pub use cli::Args;
 pub use error::{Error, Result};
@@ -94,9 +95,19 @@ pub async fn run(mut args: Args) -> Result<u8> {
             let db = db::open_write(&args).await?;
             commands::proposals::run(&db, command, json).await?
         }
-        cli::Command::Mcp => {
-            let db = std::sync::Arc::new(db::open_write(&args).await?);
-            mcp::serve(db).await?
+        cli::Command::Mcp { allow_writes } => {
+            // Read-only by default: the stdio server cannot change the database
+            // unless the user registers it with --allow-writes.
+            let db = if allow_writes {
+                db::open_write(&args).await?
+            } else {
+                db::open(&args).await?
+            };
+            mcp::serve(
+                std::sync::Arc::new(db),
+                mcp::McpOptions::from_env(allow_writes),
+            )
+            .await?
         }
     }
 

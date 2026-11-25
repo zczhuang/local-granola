@@ -24,6 +24,7 @@ import { OnboardingSection } from "./shared";
 
 import { trackAnalyticsEvent } from "~/analytics";
 import { useAuth } from "~/auth";
+import { LOCAL_ONLY } from "~/shared/local-only";
 import { StandaloneWindowShell } from "~/shared/window-shell";
 import { type Tab, useTabs } from "~/store/zustand/tabs";
 
@@ -115,6 +116,7 @@ function OnboardingScreenContent({
   }, [currentStep]);
 
   const handleCalendarSignIn = useCallback(() => {
+    if (LOCAL_ONLY) return;
     setCurrentStep("login");
     void auth.signIn();
   }, [auth]);
@@ -246,33 +248,35 @@ function OnboardingScreenContent({
             <PermissionsSection onContinue={goNext} />
           </OnboardingSection>
 
-          <OnboardingSection
-            title={<Trans>Create account</Trans>}
-            completedTitle={
-              auth.session ? (
-                <Trans>Signed in</Trans>
-              ) : didSkipLogin ? (
-                <Trans>Skipped</Trans>
-              ) : (
-                <Trans>Account</Trans>
-              )
-            }
-            status={getStepStatus("login", currentStep)}
-            onBack={goBack}
-            onNext={goNext}
-            onSkip={() => {
-              setDidSkipLogin(true);
-              trackAnalyticsEvent("onboarding_login_skipped");
-              trackAnalyticsEvent("onboarding_step_skipped", {
-                step: "login",
-                platform: currentPlatform,
-              });
-              const next = getNextStep("login");
-              if (next) setCurrentStep(next);
-            }}
-          >
-            <LoginSection onContinue={goNext} />
-          </OnboardingSection>
+          {!LOCAL_ONLY && (
+            <OnboardingSection
+              title={<Trans>Create account</Trans>}
+              completedTitle={
+                auth.session ? (
+                  <Trans>Signed in</Trans>
+                ) : didSkipLogin ? (
+                  <Trans>Skipped</Trans>
+                ) : (
+                  <Trans>Account</Trans>
+                )
+              }
+              status={getStepStatus("login", currentStep)}
+              onBack={goBack}
+              onNext={goNext}
+              onSkip={() => {
+                setDidSkipLogin(true);
+                trackAnalyticsEvent("onboarding_login_skipped");
+                trackAnalyticsEvent("onboarding_step_skipped", {
+                  step: "login",
+                  platform: currentPlatform,
+                });
+                const next = getNextStep("login");
+                if (next) setCurrentStep(next);
+              }}
+            >
+              <LoginSection onContinue={goNext} />
+            </OnboardingSection>
+          )}
 
           <OnboardingSection
             title={<Trans>Connect calendar</Trans>}

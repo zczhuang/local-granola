@@ -10,6 +10,8 @@ import { commands as templateCommands } from "@anlg/plugin-template";
 
 import type { TaskArgsMapTransformed, TaskConfig } from ".";
 import type { EnhanceImageContext } from "./enhance-images";
+import { executeLocalEnhance } from "./enhance-local";
+import { shouldEnhanceLocally } from "./local-route";
 import { createEnhanceValidator } from "./enhance-validator";
 import { appendPreferredNamesGuidance } from "./preferred-names";
 
@@ -31,10 +33,13 @@ export const enhanceWorkflow: Pick<
   "executeWorkflow" | "transforms"
 > = {
   executeWorkflow,
-  transforms: [
-    normalizeBulletPoints(),
-    smoothStream({ delayInMs: 250, chunking: "line" }),
-  ],
+  // The local pipeline saves a finished document; there is nothing to smooth.
+  transforms: shouldEnhanceLocally()
+    ? []
+    : [
+        normalizeBulletPoints(),
+        smoothStream({ delayInMs: 250, chunking: "line" }),
+      ],
 };
 
 // Anthropic requires max_tokens and the SDK clamps it to known model limits;
@@ -52,6 +57,16 @@ async function* executeWorkflow(params: {
   signal: AbortSignal;
 }) {
   const { model, args, onProgress, signal } = params;
+
+  // LOCAL-GRANOLA: LOCAL_ONLY builds use the Rust `enhance_local` command.
+  if (shouldEnhanceLocally() && args.localEnhance) {
+    yield* executeLocalEnhance({
+      args: args.localEnhance,
+      onProgress,
+      signal,
+    });
+    return;
+  }
 
   const system = await getSystemPrompt(args);
   const prompt = withLengthGuidance(

@@ -729,9 +729,15 @@ expression: canonicalize_json(contract)
       "synopsis": "anarlog proposals [-h] <command>"
     },
     {
-      "about": "Run the Anarlog MCP server over stdio",
+      "about": "Run the Anarlog MCP server over stdio (read-only unless --allow-writes)",
       "name": "anarlog mcp",
       "options": [
+        {
+          "flags": "--allow-writes",
+          "help": "Open the database read-write so the proposal and recording-import tools can stage work. Without it every tool only reads",
+          "is_flag": true,
+          "required": false
+        },
         {
           "flags": "-h, --help",
           "help": "Print help",
@@ -739,7 +745,7 @@ expression: canonicalize_json(contract)
           "required": false
         }
       ],
-      "synopsis": "anarlog mcp [-h]"
+      "synopsis": "anarlog mcp [--allow-writes] [-h]"
     }
   ],
   "synopsis": "anarlog [--base] [--db-path] [--json] [-h] [-V] <command>"

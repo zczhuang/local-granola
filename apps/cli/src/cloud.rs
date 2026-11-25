@@ -12,6 +12,25 @@ use crate::{Error, Result, commands::auth};
 
 const API_URL: &str = "https://api.anarlog.so";
 
+/// In a local-only build the Cloud API is unreachable: only loopback base URLs
+/// (used by tests) are accepted.
+pub(crate) fn ensure_cloud_allowed(base_url: &str) -> Result<()> {
+    ensure_cloud_allowed_with(anlg_local_only::LOCAL_ONLY, base_url)
+}
+
+fn ensure_cloud_allowed_with(local_only: bool, base_url: &str) -> Result<()> {
+    if !local_only {
+        return Ok(());
+    }
+    match url::Url::parse(base_url) {
+        Ok(url) if anlg_local_only::is_local_url(&url) => Ok(()),
+        _ => Err(Error::cloud(
+            "local_only",
+            "This build is local-only: Cloud API calls are disabled. Use --source local.",
+        )),
+    }
+}
+
 pub(crate) struct CloudClient {
     base_url: String,
     access_token: String,
@@ -43,6 +62,7 @@ impl CloudClient {
     }
 
     fn new(base_url: &str, access_token: String) -> Result<Self> {
+        ensure_cloud_allowed(base_url)?;
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .user_agent(format!("anarlog-cli/{}", crate::VERSION))
@@ -226,6 +246,18 @@ fn unix_timestamp() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_only_refuses_every_non_loopback_cloud_url() {
+        assert!(ensure_cloud_allowed_with(false, API_URL).is_ok());
+        for url in [API_URL, "http://192.168.1.2:8080", "not a url"] {
+            let error = ensure_cloud_allowed_with(true, url).unwrap_err();
+            assert_eq!(error.code(), "local_only");
+        }
+        assert!(ensure_cloud_allowed_with(true, "http://127.0.0.1:9").is_ok());
+        // The default API URL is refused by the real constructor too.
+        assert!(CloudClient::new(API_URL, "token".into()).is_err());
+    }
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
         matchers::{header, method, path, query_param},

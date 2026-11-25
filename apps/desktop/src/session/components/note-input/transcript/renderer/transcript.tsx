@@ -12,6 +12,10 @@ import { cn } from "@anlg/utils";
 
 import { useSearch } from "../../search/context";
 import {
+  resolveSourcesToSegmentIndexes,
+  useTranscriptJumpRequest,
+} from "../jump";
+import {
   useRenderedTranscriptData,
   useTranscriptTimelineMetadata,
 } from "./data-hooks";
@@ -320,6 +324,21 @@ const SegmentsList = memo(
         ),
       [segments, transcriptId],
     );
+    const jumpRequest = useTranscriptJumpRequest(sessionId ?? "");
+    const jump = useMemo(
+      () =>
+        jumpRequest
+          ? {
+              nonce: jumpRequest.nonce,
+              indexes: resolveSourcesToSegmentIndexes(
+                jumpRequest.sources,
+                segments,
+                transcriptId,
+              ),
+            }
+          : null,
+      [jumpRequest, segments, transcriptId],
+    );
     const virtual = useVirtualSegments({
       segments,
       segmentKeys,
@@ -328,6 +347,7 @@ const SegmentsList = memo(
       searchEnabled: transcriptSearch.query.length > 0,
       currentMs,
       offsetMs,
+      jump,
     });
     useRegisterTranscriptSegments(transcriptId, sessionId, offsetMs, segments);
 
@@ -373,7 +393,17 @@ const SegmentsList = memo(
               onFocus={virtual.handleRowFocus}
               onBlur={virtual.handleRowBlur}
             >
-              <div className={cn([index > 0 && "pt-4"])}>
+              <div
+                className={cn([
+                  index > 0 && "pt-4",
+                  "rounded-lg transition-colors duration-500",
+                  virtual.highlightedIndexes.has(index) &&
+                    "bg-amber-200/50 dark:bg-amber-400/20",
+                ])}
+                data-transcript-jump-highlight={
+                  virtual.highlightedIndexes.has(index) ? "true" : undefined
+                }
+              >
                 <SegmentRenderer
                   segment={segment}
                   offsetMs={offsetMs}

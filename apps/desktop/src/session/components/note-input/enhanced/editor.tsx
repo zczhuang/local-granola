@@ -1,5 +1,5 @@
 import type { EditorView } from "prosemirror-view";
-import { forwardRef, memo, useCallback, useMemo } from "react";
+import { forwardRef, memo, type MouseEvent, useCallback, useMemo } from "react";
 
 import { parseJsonContent } from "@anlg/editor/markdown";
 import {
@@ -11,6 +11,10 @@ import {
 
 import { AudioDropTarget } from "../audio-drop-target";
 import { useNoteFileHandlerConfig } from "../file-handler";
+import {
+  jumpToTranscriptSources,
+  parseAiLineSources,
+} from "../transcript/jump";
 
 import { AppLinkView } from "~/editor-bridge/app-link-view";
 import { useMentionConfig } from "~/editor-bridge/mention-config";
@@ -131,6 +135,23 @@ const EnhancedEditorInner = forwardRef<
       [content, sessionTitle, updateContent],
     );
 
+    // LOCAL-GRANOLA: clicking an AI line jumps to its transcript segments.
+    const handleAiLineClick = useCallback(
+      (event: MouseEvent<HTMLDivElement>) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest("a, button, [role='checkbox']")) return;
+        const line = target.closest<HTMLElement>("li.ai-line");
+        if (!line || !event.currentTarget.contains(line)) return;
+        // Let people select text inside an AI line without jumping away.
+        if (window.getSelection()?.toString()) return;
+        const sources = parseAiLineSources(line.getAttribute("data-src"));
+        if (sources.length === 0) return;
+        jumpToTranscriptSources(sessionId, sources);
+      },
+      [sessionId],
+    );
+
     const mentionConfig = useMentionConfig();
     const comments = useOwnedSessionComments(sessionId);
     // Stable identity: NoteEditor keys whole-document memos off this.
@@ -147,7 +168,11 @@ const EnhancedEditorInner = forwardRef<
         targetProps={audioDropTargetProps}
         isActive={isAudioDragActive}
       >
-        <div ref={comments.containerRef} className="relative min-h-full">
+        <div
+          ref={comments.containerRef}
+          className="relative min-h-full"
+          onClick={handleAiLineClick}
+        >
           <NoteEditor
             ref={ref}
             className="session-note-editor enhanced-summary-editor"

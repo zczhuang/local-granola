@@ -25,6 +25,7 @@ import {
 } from "./capture-result";
 import { useListener } from "./contexts";
 import { discardEmptyAutomaticCapture } from "./empty-automatic-capture";
+import { getForcedRepass } from "./engine-routing";
 import { stopWatchingMeetingNotice } from "./meeting-disclosure";
 import { createNativeTranscriptPersistence } from "./native-transcript-persistence";
 import { persistTranscriptWrite } from "./persist-retry";
@@ -37,6 +38,11 @@ import {
   useRunBatch,
 } from "./useRunBatch";
 import { useSTTConnection } from "./useSTTConnection";
+import {
+  resolveWhisperRepassTarget,
+  shouldRepass,
+  withWhisperRepassHold,
+} from "./whisper-repass";
 
 import { requestMainAutoEnhance } from "~/ai/task-window-sync";
 import { trackAnalyticsEvent } from "~/analytics";
@@ -46,6 +52,7 @@ import {
   deleteProcessedAudioForRetention,
   normalizeAudioRetention,
 } from "~/services/audio-retention";
+import { shouldRetainAudio } from "~/services/audio-retention-policy";
 import { getEnhancerService } from "~/services/enhancer";
 import { maybeExtractVoiceprintCandidates } from "~/services/voiceprint";
 import { flushCanonicalSessionEditorChanges } from "~/session-sharing/editor-activity";
@@ -61,6 +68,7 @@ import {
 } from "~/session/queries";
 import { playCompletionSound } from "~/shared/completion-sound";
 import { useConfigValue } from "~/shared/config";
+import { LOCAL_ONLY } from "~/shared/local-only";
 import { id } from "~/shared/utils";
 import { listenerStore } from "~/store/zustand/listener/instance";
 import type {
@@ -197,6 +205,7 @@ export function useCaptureLifecycle(sessionId: string) {
     useConfigValue("audio_retention"),
   );
   const rememberSpeakers = useConfigValue("remember_speakers") === true;
+  const whisperRepassSetting = useConfigValue("stt_whisper_repass");
   const {
     conn,
     isReady: connectionReady,
@@ -300,8 +309,13 @@ export function useCaptureLifecycle(sessionId: string) {
       const model = recoveredMarker?.model ?? conn?.model;
       const retainAudio =
         recoveredMarker?.retainAudio ??
-        (audioRetention !== "none" ||
-          requiresRetainedBatchAudio(provider, model));
+        // Same rule as useStartListening, which records audio under LOCAL_ONLY
+        // regardless of the "none" retention (deleted after processing).
+        shouldRetainAudio({
+          localOnly: LOCAL_ONLY,
+          audioRetention,
+          requiresBatchAudio: requiresRetainedBatchAudio(provider, model),
+        });
       // Persisted on the marker so restarts still run the full-file pass
       // instead of the chunks released during the meeting.
       const postStopBatch = recoveredMarker?.postStopBatch === true;
@@ -318,6 +332,14 @@ export function useCaptureLifecycle(sessionId: string) {
         hasMultipleRemoteParticipants &&
         localBatchDiarizationAvailableRef.current &&
         isRealtimeLocalModel(model);
+      // LOCAL-GRANOLA: Whisper large-v3-turbo second pass over retained audio.
+      const shouldWhisperRepass = () =>
+        retainAudio &&
+        shouldRepass(
+          whisperRepassSetting,
+          model,
+          getForcedRepass(sessionId) !== null,
+        );
       const shouldRefineSpeakerDiarization = () =>
         hasMultipleRemoteParticipants &&
         ((provider === "anarlog" && model === "cloud") ||
@@ -482,13 +504,9 @@ export function useCaptureLifecycle(sessionId: string) {
           .filter(
             (capture) => chunk.capture_started_at >= capture.startedAt - 5_000,
           )
-          .reduce<InheritedCapture | undefined>(
-            (latest, capture) =>
-              !latest || capture.startedAt > latest.startedAt
-                ? capture
-                : latest,
-            undefined,
-          );
+          .reduce<
+            InheritedCapture | undefined
+          >((latest, capture) => (!latest || capture.startedAt > latest.startedAt ? capture : latest), undefined);
       };
       const listRecoveryChunks = async () => {
         const result =
@@ -951,7 +969,8 @@ export function useCaptureLifecycle(sessionId: string) {
         const useLocalBatchForSpeakerDiarization =
           shouldUseLocalBatchForSpeakerDiarization();
         const refineSpeakerDiarization =
-          !usesChunkedAudio && shouldRefineSpeakerDiarization();
+          !usesChunkedAudio &&
+          (shouldRefineSpeakerDiarization() || shouldWhisperRepass());
         if (transcriptCreated) {
           try {
             await waitForSessionSearchIndex(sessionId);
@@ -1000,32 +1019,52 @@ export function useCaptureLifecycle(sessionId: string) {
               finalAudioDurationMs + 1_000 >= existingAudioDurationMs
                 ? Math.min(existingAudioDurationMs, finalAudioDurationMs)
                 : 0;
-            await runBatchRef.current(details.audioPath!, {
-              deferAudioFinalization: true,
-              ...(stoppedAtMs !== null
-                ? { captureInterval: { startedAtMs: startedAt, stoppedAtMs } }
-                : {}),
-              notifyOnCompletion: !details.liveTranscriptionActive,
-              ...(useLocalBatchForSpeakerDiarization
-                ? {
-                    provider: "soniqo",
-                    model: "soniqo-parakeet-batch",
-                    baseUrl: "soniqo://local",
-                    apiKey: "",
-                  }
-                : {}),
-              promotion:
-                preserveExistingTranscript || transcriptCreated
-                  ? {
-                      scope: "current_capture",
-                      audioOffsetMs,
-                      ...(transcriptCreated
-                        ? { replaceTranscriptId: transcriptId }
-                        : {}),
-                      startedAt,
-                    }
-                  : { scope: "whole_session" },
-            });
+            const whisperTarget = shouldWhisperRepass()
+              ? await resolveWhisperRepassTarget()
+              : null;
+            const forcedRepass = whisperTarget
+              ? getForcedRepass(sessionId)
+              : null;
+            const runPostStopBatch = () =>
+              runBatchRef.current(details.audioPath!, {
+                deferAudioFinalization: true,
+                // Engine routing pinned the language Whisper should expect.
+                ...(forcedRepass && forcedRepass.languages.length > 0
+                  ? { languages: forcedRepass.languages }
+                  : {}),
+                ...(stoppedAtMs !== null
+                  ? { captureInterval: { startedAtMs: startedAt, stoppedAtMs } }
+                  : {}),
+                notifyOnCompletion: !details.liveTranscriptionActive,
+                ...(whisperTarget
+                  ? whisperTarget
+                  : useLocalBatchForSpeakerDiarization
+                    ? {
+                        provider: "soniqo",
+                        model: "soniqo-parakeet-batch",
+                        baseUrl: "soniqo://local",
+                        apiKey: "",
+                      }
+                    : {}),
+                promotion:
+                  preserveExistingTranscript || transcriptCreated
+                    ? {
+                        scope: "current_capture",
+                        audioOffsetMs,
+                        ...(transcriptCreated
+                          ? { replaceTranscriptId: transcriptId }
+                          : {}),
+                        startedAt,
+                      }
+                    : { scope: "whole_session" },
+              });
+            await (whisperTarget
+              ? withWhisperRepassHold(
+                  sessionId,
+                  audioRetention,
+                  runPostStopBatch,
+                )
+              : runPostStopBatch());
             batchCompleted = true;
             console.info("[listener] completed post-stop transcript repair", {
               sessionId,
@@ -1513,6 +1552,7 @@ export function useCaptureLifecycle(sessionId: string) {
       conn?.provider,
       participantHumanIds,
       rememberSpeakers,
+      whisperRepassSetting,
       session?.raw_md,
       session?.user_id,
       sessionId,

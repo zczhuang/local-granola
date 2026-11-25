@@ -33,6 +33,14 @@ pub(crate) fn transcribe_file(
     Err(Error::UnsupportedPlatform)
 }
 
+pub(crate) fn transcribe_samples(
+    _model: SoniqoModel,
+    _samples: &[f32],
+    _language: &str,
+) -> Result<FileTranscript> {
+    Err(Error::UnsupportedPlatform)
+}
+
 pub(crate) fn diarize_samples(
     _model: SoniqoModel,
     _samples: &[f32],

@@ -25,9 +25,13 @@ use anlg_audio::meeting::{
 };
 use serde_json::Value;
 
-/// How far Meet's speaking outline trails the voice. Other apps have no speaking signal anyone has
-/// read, so only Meet's cues are used.
+/// How far Meet's speaking outline trails the voice.
 const MEET_CUE_DELAY_MS: i64 = 500;
+/// How far Zoom's speaking state, read from Accessibility, trails the voice. Polled once a second,
+/// so it runs later than Meet's push. LOCAL-GRANOLA(mac-untested): estimated, not measured live.
+const ZOOM_CUE_DELAY_MS: i64 = 1_200;
+/// The same for Teams. LOCAL-GRANOLA(mac-untested): estimated, not measured live.
+const TEAMS_CUE_DELAY_MS: i64 = 1_500;
 /// A voice is named only when one participant holds this share of its voted speech...
 const NAME_SHARE: f64 = 0.6;
 /// ...with at least this much voted speech once the capture is over...
@@ -297,12 +301,14 @@ impl MeetingSpeakerEvidence {
         (until > at).then_some(until)
     }
 
-    /// Whom Meet showed speaking, shifted back by its lag. The local user's own tile says nothing
-    /// about the call's voices: their voice is the microphone.
+    /// Whom the app showed speaking, shifted back by its lag. The local user's own tile says
+    /// nothing about the call's voices: their voice is the microphone. Meet's cues come from the
+    /// browser extension, Zoom's and Teams' from the helper's Accessibility reads; every other
+    /// source has no speaking signal.
     fn speaking_intervals(&self, track: &MeetingEvidenceTrack, browser: bool) -> Vec<Interval> {
-        if !browser || track.platform != MeetingEvidencePlatform::GoogleMeet {
+        let Some(delay_ms) = cue_delay_ms(track.platform, browser) else {
             return Vec::new();
-        }
+        };
         let mut intervals = Vec::new();
         for (index, cue) in track.cues.iter().enumerate() {
             let Some(participant) = cue.participant.filter(|&p| !track.is_self(p)) else {
@@ -311,11 +317,11 @@ impl MeetingSpeakerEvidence {
             let Some(until) = self.trusted_until(track, cue.at_ms) else {
                 continue;
             };
-            let start = cue.at_ms - MEET_CUE_DELAY_MS;
+            let start = cue.at_ms - delay_ms;
             let end = track
                 .cues
                 .get(index + 1)
-                .map_or(until, |next| (next.at_ms - MEET_CUE_DELAY_MS).min(until));
+                .map_or(until, |next| (next.at_ms - delay_ms).min(until));
             if end > start {
                 intervals.push(Interval {
                     start,
@@ -329,7 +335,8 @@ impl MeetingSpeakerEvidence {
 
     /// Unbroken stretches of at least `SOLO_ROSTER_MS` in which the roster showed exactly one other
     /// person. Meet's tiles qualify unless its own count says more people; a helper roster only
-    /// when it is complete, which today only Webex's open participant panel has been shown to be.
+    /// when it is complete (Webex's open participant panel; Zoom's and Teams' lists when their
+    /// header count matches the rows and one row is marked as the local user).
     fn one_on_one_runs(&self, track: &MeetingEvidenceTrack, browser: bool) -> Vec<Interval> {
         let mut runs: Vec<Interval> = Vec::new();
         for (index, roster) in track.rosters.iter().enumerate() {
@@ -350,7 +357,14 @@ impl MeetingSpeakerEvidence {
                 track.platform == MeetingEvidencePlatform::GoogleMeet
                     && roster.count.is_none_or(|count| count <= 2)
             } else {
-                track.platform == MeetingEvidencePlatform::Webex && roster.complete
+                // Zoom and Teams qualify on the same terms as Webex: the helper's roster must be
+                // complete (the app's own count matches its rows, and the local user is marked).
+                matches!(
+                    track.platform,
+                    MeetingEvidencePlatform::Webex
+                        | MeetingEvidencePlatform::Zoom
+                        | MeetingEvidencePlatform::MicrosoftTeams
+                ) && roster.complete
             };
             let [other] = others[..] else { continue };
             if !qualifies || end <= roster.at_ms {
@@ -584,8 +598,11 @@ impl MeetingEvidenceTrack {
             self.rosters.push(roster);
         }
 
-        // Accessibility shows no speaking signal on any app anyone has checked; ignore any it sends.
-        if browser && let Some(speaking) = &observation.speaking {
+        // Only Meet (extension) and Zoom/Teams (Accessibility) have a speaking signal; ignore any
+        // other source sends.
+        if cue_delay_ms(platform, browser).is_some()
+            && let Some(speaking) = &observation.speaking
+        {
             let last = self.cues.last().cloned();
             let fresh = last
                 .as_ref()
@@ -624,6 +641,17 @@ impl MeetingEvidenceTrack {
                 .flat_map(|roster| &roster.participants)
                 .chain(self.cues.iter().filter_map(|cue| cue.participant.as_ref()))
                 .all(|&participant| (participant as usize) < known)
+    }
+}
+
+/// How far behind the voice an app's speaking cue runs, or `None` when that source has no speaking
+/// signal worth using.
+fn cue_delay_ms(platform: MeetingEvidencePlatform, browser: bool) -> Option<i64> {
+    match (platform, browser) {
+        (MeetingEvidencePlatform::GoogleMeet, true) => Some(MEET_CUE_DELAY_MS),
+        (MeetingEvidencePlatform::Zoom, false) => Some(ZOOM_CUE_DELAY_MS),
+        (MeetingEvidencePlatform::MicrosoftTeams, false) => Some(TEAMS_CUE_DELAY_MS),
+        _ => None,
     }
 }
 

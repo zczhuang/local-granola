@@ -1086,3 +1086,64 @@ fn nari_empty_final_clears_only_its_preview_and_never_persists_unconfirmed_text(
     let flushed = engine.flush();
     assert!(flushed.is_none_or(|update| update.transcript_delta.new_words.is_empty()));
 }
+
+fn final_text_of(engine: &mut LiveTranscriptEngine, response: &StreamResponse) -> String {
+    let update = engine.process(response).expect("update");
+    let flush = engine.flush();
+    update
+        .transcript_delta
+        .new_words
+        .iter()
+        .chain(flush.iter().flat_map(|u| u.transcript_delta.new_words.iter()))
+        .map(|word| word.text.as_str())
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
+#[test]
+fn soniqo_engine_applies_session_vocabulary_to_final_words() {
+    let response = transcript_response_at(
+        "we use anar log daily",
+        words_from_text("we use anar log daily", 0.0, 2.0),
+        true,
+        0,
+        0.0,
+        2.0,
+    );
+    let terms = vec!["Anarlog".to_string()];
+
+    let plain = final_text_of(&mut LiveTranscriptEngine::new("soniqo", &[], None), &response);
+    let corrected = final_text_of(
+        &mut LiveTranscriptEngine::new("soniqo", &[], None).with_vocabulary(&terms),
+        &response,
+    );
+
+    assert_eq!(plain, "we use anar log daily");
+    assert_eq!(corrected, "we use Anarlog daily");
+}
+
+#[test]
+fn vocabulary_is_ignored_off_the_soniqo_path_and_when_empty() {
+    let response = transcript_response_at(
+        "we use anar log daily",
+        words_from_text("we use anar log daily", 0.0, 2.0),
+        true,
+        0,
+        0.0,
+        2.0,
+    );
+    let terms = vec!["Anarlog".to_string()];
+
+    let other = final_text_of(
+        &mut LiveTranscriptEngine::new("anarlog", &[], None).with_vocabulary(&terms),
+        &response,
+    );
+    let empty = final_text_of(
+        &mut LiveTranscriptEngine::new("soniqo", &[], None).with_vocabulary(&[]),
+        &response,
+    );
+
+    assert_eq!(other, "we use anar log daily");
+    assert_eq!(empty, "we use anar log daily");
+}

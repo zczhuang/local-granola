@@ -4,6 +4,7 @@ import { commands as localApiCommands } from "@anlg/plugin-local-api";
 
 import { supabase } from "~/auth/client";
 import { env } from "~/env";
+import { LOCAL_ONLY } from "~/shared/local-only";
 import { mirrorLocalStorage } from "~/shared/local-storage-mirror";
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -259,6 +260,7 @@ async function cloudApiEnabled(userId: string): Promise<boolean> {
 }
 
 export async function syncCloudApiSnapshot(sessionId: string): Promise<void> {
+  if (LOCAL_ONLY) return;
   const intent = setSnapshotIntent(sessionId, "upsert");
   try {
     const current = await session();
@@ -356,6 +358,7 @@ async function deleteCloudApiSnapshotForUser(
 }
 
 export async function backfillCloudApiSnapshots(): Promise<number> {
+  if (LOCAL_ONLY) return 0;
   const current = await session();
   if (!(await cloudApiEnabled(current.user.id))) {
     return 0;
@@ -389,6 +392,7 @@ export async function backfillCloudApiSnapshots(): Promise<number> {
 }
 
 export async function initializeCloudApiBackfill(): Promise<void> {
+  if (LOCAL_ONLY) return;
   const current = await session();
   const settings = await getCloudApiSettings();
   if (!settings.enabled) {
@@ -403,6 +407,7 @@ export async function initializeCloudApiBackfill(): Promise<void> {
 }
 
 export function syncCloudApiSnapshotBestEffort(sessionId: string): void {
+  if (LOCAL_ONLY) return;
   const intent = setSnapshotIntent(sessionId, "upsert");
   void session()
     .then(async (current) => {
@@ -424,6 +429,7 @@ export function syncCloudApiSnapshotBestEffort(sessionId: string): void {
 }
 
 export function deleteCloudApiSnapshotBestEffort(sessionId: string): void {
+  if (LOCAL_ONLY) return;
   const intent = setSnapshotIntent(sessionId, "delete");
   cancelScheduledSnapshotSync(sessionId);
   void session()
@@ -450,6 +456,7 @@ export function deleteCloudApiSnapshotBestEffort(sessionId: string): void {
 }
 
 export function scheduleCloudApiSnapshotSync(sessionId: string): void {
+  if (LOCAL_ONLY) return;
   const intent = setSnapshotIntent(sessionId, "upsert");
   void session()
     .then((current) => {
@@ -509,6 +516,7 @@ async function syncLiveCloudApiSnapshot(
 }
 
 export function scheduleCloudApiBackfillRetry(): void {
+  if (LOCAL_ONLY) return;
   if (backfillRetryTimer !== null) {
     return;
   }

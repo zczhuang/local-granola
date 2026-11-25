@@ -20,12 +20,15 @@ pub struct ManagedState {
     fire_and_forget_slots: std::sync::Arc<tokio::sync::Semaphore>,
     groups: std::sync::Mutex<std::collections::HashMap<String, String>>,
     session: std::sync::Mutex<SessionTracker>,
+    /// True in the local-only build or when no PostHog key was compiled in.
+    forced_disabled: bool,
 }
 
 impl ManagedState {
-    fn new(client: anlg_analytics::AnalyticsClient) -> Self {
+    fn new(client: anlg_analytics::AnalyticsClient, forced_disabled: bool) -> Self {
         Self {
             client,
+            forced_disabled,
             fire_and_forget_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(
                 MAX_CONCURRENT_FIRE_AND_FORGET_EVENTS,
             )),
@@ -33,6 +36,15 @@ impl ManagedState {
             session: std::sync::Mutex::new(SessionTracker::new(std::time::SystemTime::now())),
         }
     }
+}
+
+/// The PostHog key to use, or `None` when analytics must stay off: always in the
+/// local-only build, and whenever no well-formed key was compiled in.
+fn effective_posthog_key(local_only: bool, key: Option<&'static str>) -> Option<&'static str> {
+    if local_only {
+        return None;
+    }
+    key.filter(|key| key.starts_with("phc_"))
 }
 
 const PLUGIN_NAME: &str = "analytics";
@@ -58,19 +70,8 @@ pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new(PLUGIN_NAME)
         .invoke_handler(specta_builder.invoke_handler())
         .setup(|app, _api| {
-            let posthog_key = {
-                #[cfg(not(debug_assertions))]
-                {
-                    let v = env!("POSTHOG_API_KEY");
-                    assert!(v.starts_with("phc_"));
-                    Some(v)
-                }
-
-                #[cfg(debug_assertions)]
-                {
-                    option_env!("POSTHOG_API_KEY")
-                }
-            };
+            let posthog_key =
+                effective_posthog_key(anlg_local_only::LOCAL_ONLY, option_env!("POSTHOG_API_KEY"));
 
             let client = {
                 let mut builder = anlg_analytics::AnalyticsClientBuilder::default();
@@ -81,7 +82,7 @@ pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
                 builder.build()
             };
 
-            assert!(app.manage(ManagedState::new(client)));
+            assert!(app.manage(ManagedState::new(client, posthog_key.is_none())));
             Ok(())
         })
         .build()
@@ -90,6 +91,17 @@ pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn analytics_is_off_when_local_only_or_keyless() {
+        assert_eq!(effective_posthog_key(true, Some("phc_abc")), None);
+        assert_eq!(effective_posthog_key(false, None), None);
+        assert_eq!(effective_posthog_key(false, Some("nope")), None);
+        assert_eq!(
+            effective_posthog_key(false, Some("phc_abc")),
+            Some("phc_abc")
+        );
+    }
 
     #[test]
     fn export_types() {

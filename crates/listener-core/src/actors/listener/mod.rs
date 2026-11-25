@@ -457,7 +457,8 @@ fn resume_transcript(args: &ListenerArgs, adapter_name: &str) -> LiveTranscriptE
             args.speaker_assignments.clone(),
             args.mic_isolated,
             args.session_started_at.elapsed().as_millis() as i64,
-        ),
+        )
+        .with_vocabulary(&args.keywords),
     }
 }
 

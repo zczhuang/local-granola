@@ -4,6 +4,7 @@ import { commands as updaterCommands } from "@anlg/plugin-updater2";
 import { useMountEffect } from "@anlg/ui/hooks/use-mount-effect";
 
 import { isAppStoreBuild } from "~/shared/app-store";
+import { LOCAL_ONLY } from "~/shared/local-only";
 import { listenerStore } from "~/store/zustand/listener/instance";
 
 // Serialized so rapid start/stop transitions publish in order.
@@ -27,7 +28,7 @@ export function UpdaterMeetingSync() {
       state.live.status === "active" || state.live.status === "finalizing",
   );
 
-  if (isAppStoreBuild()) {
+  if (LOCAL_ONLY || isAppStoreBuild()) {
     return null;
   }
 

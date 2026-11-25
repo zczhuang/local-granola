@@ -4,6 +4,8 @@ const COMMANDS: &[&str] = &[
     "prepare_generated_summary",
     "compose_generated_summary",
     "save_generated_summary",
+    "enhance_local",
+    "enhance_local_is_stale",
     "save_generated_title",
     "apply_session_content_corrections",
     "render",

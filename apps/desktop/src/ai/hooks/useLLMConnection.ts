@@ -41,6 +41,7 @@ import {
 import { useAiProvider } from "~/settings/providers";
 import { useSettingsReady } from "~/settings/queries";
 import { useConfigValues } from "~/shared/config";
+import { isLocalLlmProvider, LOCAL_ONLY } from "~/shared/local-only";
 
 // App attribution per https://openrouter.ai/docs/app-attribution. Mirrors
 // crates/llm-proxy/src/provider/openrouter.rs's APP_REFERER/APP_TITLE/
@@ -209,7 +210,9 @@ const resolveLLMConnection = (params: {
 
   const providerDefinition = PROVIDERS.find((p) => p.id === providerId);
 
-  if (!providerDefinition) {
+  // Hosted providers are filtered out of PROVIDERS in local-only builds, so a
+  // stale stored selection (e.g. "anarlog") lands here and is rejected.
+  if (!providerDefinition || (LOCAL_ONLY && !isLocalLlmProvider(providerId))) {
     return {
       conn: null,
       status: {

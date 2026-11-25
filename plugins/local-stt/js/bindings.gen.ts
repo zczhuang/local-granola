@@ -238,6 +238,7 @@ export type ServerType = "internal" | "external";
 export type SoniqoModel =
   | "soniqo-parakeet-streaming"
   | "soniqo-parakeet-batch"
+  | "soniqo-parakeet-v3-live"
   | "soniqo-omnilingual"
   | "soniqo-qwen3-small"
   | "soniqo-qwen3-large";

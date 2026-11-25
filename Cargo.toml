@@ -56,6 +56,7 @@ anlg-audio-interface = { path = "crates/audio-interface", package = "audio-inter
 anlg-audio-mime = { path = "crates/audio-mime", package = "audio-mime" }
 anlg-audio-mock = { path = "crates/audio-mock", package = "audio-mock" }
 anlg-audio-norm = { path = "crates/audio-norm", package = "audio-norm" }
+anlg-audio-retention = { path = "crates/audio-retention", package = "audio-retention" }
 anlg-audio-snapshot = { path = "crates/audio-snapshot", package = "audio-snapshot" }
 anlg-audio-sync = { path = "crates/audio-sync", package = "audio-sync" }
 anlg-audio-utils = { path = "crates/audio-utils", package = "audio-utils" }
@@ -83,6 +84,7 @@ anlg-docs = { path = "crates/docs", package = "docs" }
 anlg-download-interface = { path = "crates/download-interface", package = "download-interface" }
 anlg-e2ee = { path = "crates/e2ee", package = "e2ee" }
 anlg-embedding = { path = "crates/embedding", package = "embedding" }
+anlg-enhanced-notes = { path = "crates/enhanced-notes", package = "enhanced-notes" }
 anlg-exa = { path = "crates/exa", package = "exa" }
 anlg-export-core = { path = "crates/export-core", package = "export-core" }
 anlg-file = { path = "crates/file", package = "file" }
@@ -106,6 +108,7 @@ anlg-listener2-core = { path = "crates/listener2-core", package = "listener2-cor
 anlg-llm-proxy = { path = "crates/llm-proxy", package = "llm-proxy" }
 anlg-lmstudio = { path = "crates/lmstudio", package = "lmstudio" }
 anlg-local-llm-core = { path = "crates/local-llm-core", package = "local-llm-core" }
+anlg-local-only = { path = "crates/local-only", package = "local-only" }
 anlg-local-model = { path = "crates/local-model", package = "local-model" }
 anlg-local-stt-core = { path = "crates/local-stt-core", package = "local-stt-core" }
 anlg-loops = { path = "crates/loops", package = "loops" }
@@ -132,6 +135,7 @@ anlg-session-ingest = { path = "crates/session-ingest", package = "session-inges
 anlg-shortcut-macos = { path = "crates/shortcut-macos", package = "shortcut-macos" }
 anlg-slack-web = { path = "crates/slack-web", package = "slack-web" }
 anlg-storage = { path = "crates/storage", package = "storage" }
+anlg-stt-routing = { path = "crates/stt-routing", package = "stt-routing" }
 anlg-summary = { path = "crates/summary", package = "summary" }
 anlg-supabase-auth = { path = "crates/supabase-auth", package = "supabase-auth" }
 anlg-supabase-storage = { path = "crates/supabase-storage", package = "supabase-storage" }

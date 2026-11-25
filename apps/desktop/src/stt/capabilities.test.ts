@@ -197,6 +197,7 @@ describe("isLocalFileSttModel", () => {
 describe("isRealtimeLocalModel", () => {
   test.each([
     { model: "soniqo-parakeet-streaming", expected: true },
+    { model: "soniqo-parakeet-v3-live", expected: true },
     { model: "apple-speech", expected: true },
     { model: "soniqo-parakeet-batch", expected: false },
     { model: "am-parakeet-v3", expected: false },

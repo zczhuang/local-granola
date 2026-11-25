@@ -2,6 +2,8 @@ import { platform } from "@tauri-apps/plugin-os";
 
 import type { SectionStatus } from "./shared";
 
+import { LOCAL_ONLY } from "~/shared/local-only";
+
 export type OnboardingStep =
   | "permissions"
   | "login"
@@ -18,8 +20,18 @@ const STEPS_MACOS: OnboardingStep[] = [
 ];
 const STEPS_OTHER: OnboardingStep[] = ["login", "calendar", "imports", "final"];
 
+/** The local-only build has no account, so onboarding skips the login step. */
+export function withoutLoginWhenLocalOnly(
+  steps: OnboardingStep[],
+  localOnly: boolean = LOCAL_ONLY,
+): OnboardingStep[] {
+  return localOnly ? steps.filter((step) => step !== "login") : steps;
+}
+
 function getOnboardingSteps(): OnboardingStep[] {
-  return platform() === "macos" ? STEPS_MACOS : STEPS_OTHER;
+  return withoutLoginWhenLocalOnly(
+    platform() === "macos" ? STEPS_MACOS : STEPS_OTHER,
+  );
 }
 
 export function getInitialStep(): OnboardingStep {

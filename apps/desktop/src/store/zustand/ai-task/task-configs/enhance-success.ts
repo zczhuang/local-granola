@@ -4,6 +4,8 @@ import { commands as localApiCommands } from "@anlg/plugin-local-api";
 import { commands as templateCommands } from "@anlg/plugin-template";
 
 import { createTaskId, type TaskConfig } from ".";
+import { runLocalEnhanceSuccess } from "./enhance-local";
+import { shouldEnhanceLocally } from "./local-route";
 import { getPersistableGeneratedTitle } from "./title-success";
 
 import { runNoteEnhancedAutomations } from "~/automations/engine";
@@ -35,6 +37,22 @@ export const runEnhanceSuccess = async ({
   signal,
   onPersisted,
 }: EnhanceSuccessParams) => {
+  // LOCAL-GRANOLA: `enhance_local` already saved the document.
+  if (shouldEnhanceLocally() && transformedArgs.localEnhance) {
+    await runLocalEnhanceSuccess({
+      text,
+      taskId,
+      args,
+      transformedArgs,
+      model,
+      startTask,
+      getTaskState,
+      signal,
+    });
+    onPersisted?.();
+    return;
+  }
+
   const preparedResult = await templateCommands.prepareGeneratedSummary({
     text,
     tag_sources: [

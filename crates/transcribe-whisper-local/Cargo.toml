@@ -28,6 +28,7 @@ anlg-audio-interface = { workspace = true }
 anlg-audio-utils = { workspace = true }
 anlg-model-manager = { workspace = true, features = ["whisper-local"] }
 anlg-pyannote-local = { workspace = true }
+anlg-stt-routing = { workspace = true }
 anlg-transcribe-core = { workspace = true }
 anlg-whisper = { workspace = true }
 anlg-whisper-local = { workspace = true }

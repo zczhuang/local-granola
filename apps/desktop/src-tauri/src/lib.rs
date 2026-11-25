@@ -192,6 +192,15 @@ pub fn main() {
         }
     };
 
+    // Local-only build: force telemetry, crash reporting, cloud sync and
+    // automatic updates off (and locked in the settings UI) on every start.
+    if anlg_local_only::LOCAL_ONLY
+        && let Err(error) =
+            anlg_db_app::set_builtin_managed_settings(anlg_local_only::forced_settings())
+    {
+        eprintln!("failed to register local-only settings: {error}");
+    }
+
     let (root_supervisor_ctx, root_supervisor_handle, db, crash_reporting_enabled) = runtime
         .block_on(async {
             let (root_supervisor_ctx, root_supervisor_handle) =
@@ -220,7 +229,9 @@ pub fn main() {
         });
 
     let sentry_client = {
-        let dsn = if std::env::var_os("ANARLOG_DISABLE_SENTRY").is_some() {
+        let dsn = if anlg_local_only::LOCAL_ONLY
+            || std::env::var_os("ANARLOG_DISABLE_SENTRY").is_some()
+        {
             None
         } else {
             option_env!("SENTRY_DSN")
@@ -347,7 +358,9 @@ pub fn main() {
 
     #[cfg(not(feature = "app-store"))]
     {
-        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+        if !anlg_local_only::LOCAL_ONLY {
+            builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+        }
     }
 
     builder = builder
@@ -379,11 +392,17 @@ pub fn main() {
 
     #[cfg(not(feature = "app-store"))]
     {
-        builder = builder.plugin(tauri_plugin_updater2::init());
+        if !anlg_local_only::LOCAL_ONLY {
+            builder = builder.plugin(tauri_plugin_updater2::init());
+        }
     }
 
     builder = builder
-        .plugin(tauri_plugin_tray::init(!cfg!(feature = "app-store")))
+        // LOCAL-GRANOLA(mac-untested): the tray's update listeners need updater2's events, which
+        // are only mounted when updater2 is registered (not in app-store or LOCAL_ONLY builds).
+        .plugin(tauri_plugin_tray::init(
+            !cfg!(feature = "app-store") && !anlg_local_only::LOCAL_ONLY,
+        ))
         .plugin(tauri_plugin_settings::init())
         .plugin(tauri_plugin_sfx::init())
         .plugin(tauri_plugin_shortcut::init())

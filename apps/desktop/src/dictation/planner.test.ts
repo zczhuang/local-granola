@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     isLocalModel: false,
     isCloudModel: false,
   },
+  localOnly: false,
   batchSupported: true,
   uploads: [] as { path: string; provider?: string; baseUrl?: string }[],
   account: "user-1",
@@ -33,6 +34,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@tauri-apps/plugin-os", () => ({
   platform: () => "macos",
   arch: () => "aarch64",
+}));
+vi.mock("~/shared/local-only", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/shared/local-only")>()),
+  get LOCAL_ONLY() {
+    return mocks.localOnly;
+  },
 }));
 vi.mock("~/stt/useSTTConnection", () => ({
   useSTTConnection: () => mocks.stt,
@@ -131,6 +138,7 @@ const LOCAL = {
 describe("dictation planner", () => {
   beforeEach(() => {
     mocks.stt = { conn: LOCAL, isLocalModel: true, isCloudModel: false };
+    mocks.localOnly = false;
     mocks.batchSupported = true;
     mocks.uploads = [];
     mocks.account = "user-1";
@@ -181,6 +189,16 @@ describe("dictation planner", () => {
       apiKey: "",
     });
     expect(mocks.getSessionForRequest).not.toHaveBeenCalled();
+  });
+
+  it("refuses to plan without a connection in the local-only build, instead of using the stored provider", async () => {
+    mocks.localOnly = true;
+    mocks.stt = { conn: null, isLocalModel: false, isCloudModel: false };
+    const { result } = renderHook(() => useDictationPlanner("dictation-1"));
+    await expect(
+      result.current.plan({ accountId: "user-1", context: null }),
+    ).rejects.toThrow(/won't send it to a cloud provider/u);
+    expect(mocks.uploads).toEqual([]);
   });
 
   it("streams the cloud route with a fresh session, and keeps recording without a stream when it can't refresh", async () => {

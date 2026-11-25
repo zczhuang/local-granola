@@ -1,0 +1,8 @@
+[package]
+name = "stt-routing"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anlg-language = { workspace = true }
+serde = { workspace = true }

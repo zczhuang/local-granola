@@ -213,6 +213,7 @@ impl CallbackTokens {
 }
 
 async fn verify_and_build_session(tokens: CallbackTokens) -> Result<Session> {
+    crate::cloud::ensure_cloud_allowed(API_URL)?;
     let claims = decode_token_claims(&tokens.access_token)?;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(15))

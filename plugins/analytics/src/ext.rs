@@ -205,6 +205,13 @@ impl<'a, R: tauri::Runtime, M: tauri::Manager<R>> Analytics<'a, R, M> {
     }
 
     pub fn is_disabled(&self) -> Result<bool, crate::Error> {
+        if self
+            .manager
+            .try_state::<crate::ManagedState>()
+            .is_none_or(|state| state.forced_disabled)
+        {
+            return Ok(true);
+        }
         let store = self.manager.store2().scoped_store(crate::PLUGIN_NAME)?;
         let v = store.get(crate::StoreKey::Disabled)?.unwrap_or(false);
         Ok(v)

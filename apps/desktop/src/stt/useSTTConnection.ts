@@ -11,12 +11,14 @@ import { type ProviderId, PROVIDERS } from "~/settings/ai/stt/shared";
 import { useAiProvidersState } from "~/settings/providers";
 import { useSettingsReady } from "~/settings/queries";
 import { useConfigValues } from "~/shared/config";
+import { LOCAL_ONLY } from "~/shared/local-only";
 import {
   isAnarlogCloudSttModel,
   isLocalFileSttModel,
   isOnDeviceSttModel,
   isRealtimeLocalModel,
 } from "~/stt/capabilities";
+import { isSttConnectionAllowed } from "~/stt/local-only-guard";
 import { localSttQueries } from "~/stt/useLocalSttModel";
 
 export const useSTTConnection = () => {
@@ -141,7 +143,7 @@ export const useSTTConnection = () => {
   const baseUrl = providerConfig?.base_url?.trim() || defaultBaseUrl?.trim();
   const apiKey = providerConfig?.api_key?.trim();
 
-  const connection = useMemo(() => {
+  const rawConnection = useMemo(() => {
     if (!current_stt_provider || !current_stt_model) {
       return null;
     }
@@ -202,6 +204,20 @@ export const useSTTConnection = () => {
     auth,
     billing.isPaid,
   ]);
+
+  // Local-only egress guard (mirrors useLLMConnection): never hand out a
+  // connection to a cloud model, a non-local provider or a non-loopback URL.
+  const connection = useMemo(
+    () =>
+      rawConnection &&
+      isSttConnectionAllowed(rawConnection, {
+        localOnly: LOCAL_ONLY,
+        isCloudModel,
+      })
+        ? rawConnection
+        : null,
+    [rawConnection, isCloudModel],
+  );
 
   return {
     conn: connection,

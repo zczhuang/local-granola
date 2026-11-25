@@ -23,6 +23,7 @@ import { setSettingValue } from "~/settings/queries";
 import { isAppStoreBuild } from "~/shared/app-store";
 import { useConfigValue, useConfigValues } from "~/shared/config";
 import { useLatestRef } from "~/shared/hooks/useLatestRef";
+import { LOCAL_ONLY } from "~/shared/local-only";
 import { listenerStore } from "~/store/zustand/listener/instance";
 import { useTabs } from "~/store/zustand/tabs";
 import {
@@ -592,7 +593,11 @@ function useUpdaterEvents() {
   const openNewRef = useLatestRef(openNew);
 
   useMountEffect(() => {
-    if (isAppStoreBuild() || getCurrentWebviewWindowLabel() !== "main") {
+    if (
+      LOCAL_ONLY ||
+      isAppStoreBuild() ||
+      getCurrentWebviewWindowLabel() !== "main"
+    ) {
       return;
     }
 

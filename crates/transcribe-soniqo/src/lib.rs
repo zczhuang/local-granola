@@ -11,6 +11,8 @@ mod responses;
 #[cfg(test)]
 mod streaming_offline;
 mod types;
+mod vad_window;
+mod windowed_live;
 
 pub use error::{Error, Result};
 pub use model::{
@@ -24,6 +26,7 @@ pub use types::{
     DiarizationSegment, FileTranscript, FileTranscriptChunk, LivePartial, ModelDownloadState,
     TranscriptSource,
 };
+pub use vad_window::{VadWindowConfig, VadWindower, Window};
 
 fn ensure_supported_platform(model: SoniqoModel) -> Result<()> {
     if !cfg!(all(target_os = "macos", target_arch = "aarch64")) {
@@ -72,6 +75,12 @@ pub fn is_model_downloading(model: SoniqoModel) -> Result<bool> {
 
 pub fn delete_model(model: SoniqoModel) -> Result<()> {
     reset_model(model)?;
+
+    // `ParakeetV3Live` shares its files with `ParakeetBatch`; deleting it only
+    // releases the loaded model so the batch model's files stay put.
+    if model.is_windowed_live() {
+        return Ok(());
+    }
 
     let cache_dir = model_cache_dir(model)?;
     if cache_dir.exists() {
@@ -143,6 +152,15 @@ pub fn transcribe_file(
     result
 }
 
+pub fn transcribe_samples(
+    model: SoniqoModel,
+    samples: &[f32],
+    language: Option<&str>,
+) -> Result<FileTranscript> {
+    ensure_supported_platform(model)?;
+    platform::transcribe_samples(model.bridge_model(), samples, language.unwrap_or_default())
+}
+
 pub fn diarize_samples(
     model: SoniqoModel,
     samples: &[f32],
@@ -164,9 +182,30 @@ pub fn diarize_samples(
     platform::diarize_samples(model.batch_model(), samples, exact_speakers)
 }
 
+enum LiveBackend {
+    /// Native Soniqo streaming session (`ParakeetStreaming`).
+    Native { session_token: String },
+    /// Batch model on VAD windows (`ParakeetV3Live`).
+    Windowed(Box<windowed_live::WindowedLive<PlatformTranscriber>>),
+}
+
+/// Runs the Swift bridge's file transcription on raw samples.
+struct PlatformTranscriber {
+    model: SoniqoModel,
+}
+
+impl windowed_live::SamplesTranscriber for PlatformTranscriber {
+    fn transcribe(&mut self, samples: &[f32]) -> Result<String> {
+        // LOCAL-GRANOLA(mac-untested): needs the Swift `_soniqo_transcribe_samples` bridge.
+        // Parakeet-v3 detects the language itself, so no hint is passed.
+        platform::transcribe_samples(self.model.bridge_model(), samples, "")
+            .map(|transcript| transcript.text)
+    }
+}
+
 pub struct LiveTranscriptionSession {
     model: SoniqoModel,
-    session_token: String,
+    backend: LiveBackend,
     stopped: bool,
 }
 
@@ -181,18 +220,38 @@ impl LiveTranscriptionSession {
             )));
         }
 
-        let session_token = platform::live_start(model).map_err(|error| {
-            tracing::error!(
-                anarlog.stt.provider.name = "soniqo",
-                anarlog.stt.model = %model,
-                error = %error,
-                "soniqo_native_live_start_failed"
-            );
-            error
-        })?;
+        let backend = if model.is_windowed_live() {
+            let mut transcriber = PlatformTranscriber { model };
+            // Load (and compile) the model now so the first utterance does not
+            // pay for it; surfaces download problems at session start like the
+            // native streaming path does.
+            windowed_live::SamplesTranscriber::transcribe(&mut transcriber, &[0.0; 16_000])
+                .map_err(|error| {
+                    tracing::error!(
+                        anarlog.stt.provider.name = "soniqo",
+                        anarlog.stt.model = %model,
+                        error = %error,
+                        "soniqo_windowed_live_start_failed"
+                    );
+                    error
+                })?;
+            LiveBackend::Windowed(Box::new(windowed_live::WindowedLive::new(transcriber)))
+        } else {
+            let session_token = platform::live_start(model).map_err(|error| {
+                tracing::error!(
+                    anarlog.stt.provider.name = "soniqo",
+                    anarlog.stt.model = %model,
+                    error = %error,
+                    "soniqo_native_live_start_failed"
+                );
+                error
+            })?;
+            LiveBackend::Native { session_token }
+        };
+
         Ok(Self {
             model,
-            session_token,
+            backend,
             stopped: false,
         })
     }
@@ -202,11 +261,19 @@ impl LiveTranscriptionSession {
         source: TranscriptSource,
         samples: &[f32],
     ) -> Result<Vec<LivePartial>> {
-        platform::live_append(&self.session_token, source, samples)
+        match &mut self.backend {
+            LiveBackend::Native { session_token } => {
+                platform::live_append(session_token, source, samples)
+            }
+            LiveBackend::Windowed(live) => live.append(source, samples),
+        }
     }
 
     pub fn finalize(&mut self, source: TranscriptSource) -> Result<Vec<LivePartial>> {
-        platform::live_finalize(&self.session_token, source)
+        match &mut self.backend {
+            LiveBackend::Native { session_token } => platform::live_finalize(session_token, source),
+            LiveBackend::Windowed(live) => live.finalize(source),
+        }
     }
 
     pub fn model(&self) -> SoniqoModel {
@@ -215,14 +282,19 @@ impl LiveTranscriptionSession {
 
     pub fn stop(mut self) -> Result<()> {
         self.stopped = true;
-        platform::live_stop(&self.session_token)
+        match &self.backend {
+            LiveBackend::Native { session_token } => platform::live_stop(session_token),
+            LiveBackend::Windowed(_) => Ok(()),
+        }
     }
 }
 
 impl Drop for LiveTranscriptionSession {
     fn drop(&mut self) {
-        if !self.stopped {
-            let _ = platform::live_stop(&self.session_token);
+        if !self.stopped
+            && let LiveBackend::Native { session_token } = &self.backend
+        {
+            let _ = platform::live_stop(session_token);
         }
     }
 }

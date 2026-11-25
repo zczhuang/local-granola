@@ -54,6 +54,11 @@ pub enum SoniqoModel {
     ParakeetStreaming,
     #[serde(rename = "soniqo-parakeet-batch")]
     ParakeetBatch,
+    /// Parakeet-TDT-v3 for live use: the batch model run on VAD-cut windows,
+    /// one windower per audio source so mic ("me") and system ("them") stay
+    /// separate. Shares model files with `ParakeetBatch`.
+    #[serde(rename = "soniqo-parakeet-v3-live")]
+    ParakeetV3Live,
     #[serde(rename = "soniqo-omnilingual")]
     Omnilingual,
     #[serde(rename = "soniqo-qwen3-small")]
@@ -66,18 +71,24 @@ impl SoniqoModel {
     const ALL: &'static [Self] = &[
         Self::ParakeetStreaming,
         Self::ParakeetBatch,
+        Self::ParakeetV3Live,
         Self::Omnilingual,
     ];
 
     const KNOWN: &'static [Self] = &[
         Self::ParakeetStreaming,
         Self::ParakeetBatch,
+        Self::ParakeetV3Live,
         Self::Omnilingual,
         Self::Qwen3Small,
         Self::Qwen3Large,
     ];
 
-    const SELECTABLE: &'static [Self] = &[Self::ParakeetStreaming, Self::ParakeetBatch];
+    const SELECTABLE: &'static [Self] = &[
+        Self::ParakeetStreaming,
+        Self::ParakeetBatch,
+        Self::ParakeetV3Live,
+    ];
 
     pub const fn all() -> &'static [Self] {
         Self::ALL
@@ -91,6 +102,7 @@ impl SoniqoModel {
         match self {
             Self::ParakeetStreaming => "soniqo-parakeet-streaming",
             Self::ParakeetBatch => "soniqo-parakeet-batch",
+            Self::ParakeetV3Live => "soniqo-parakeet-v3-live",
             Self::Omnilingual => "soniqo-omnilingual",
             Self::Qwen3Small => "soniqo-qwen3-small",
             Self::Qwen3Large => "soniqo-qwen3-large",
@@ -100,7 +112,9 @@ impl SoniqoModel {
     pub const fn repo(self) -> &'static str {
         match self {
             Self::ParakeetStreaming => "aufklarer/Parakeet-EOU-120M-CoreML-INT8",
-            Self::ParakeetBatch => "aufklarer/Parakeet-TDT-v3-CoreML-INT8-30s",
+            Self::ParakeetBatch | Self::ParakeetV3Live => {
+                "aufklarer/Parakeet-TDT-v3-CoreML-INT8-30s"
+            }
             Self::Omnilingual => "aufklarer/Omnilingual-ASR-CTC-300M-CoreML-INT8-10s",
             Self::Qwen3Small => "aufklarer/Qwen3-ASR-0.6B-MLX-4bit",
             Self::Qwen3Large => "aufklarer/Qwen3-ASR-1.7B-MLX-8bit",
@@ -111,6 +125,7 @@ impl SoniqoModel {
         match self {
             Self::ParakeetStreaming => "Parakeet Streaming",
             Self::ParakeetBatch => "Parakeet Batch",
+            Self::ParakeetV3Live => "Parakeet v3 Live",
             Self::Omnilingual => "Omnilingual ASR",
             Self::Qwen3Small => "Qwen3 ASR 0.6B",
             Self::Qwen3Large => "Qwen3 ASR 1.7B",
@@ -123,6 +138,9 @@ impl SoniqoModel {
             Self::ParakeetBatch => {
                 "Batch transcription with on-device speaker labels for 25 European languages."
             }
+            Self::ParakeetV3Live => {
+                "Realtime transcription with Parakeet v3 on voice-activity windows, mic and system audio kept separate."
+            }
             Self::Omnilingual => "Multilingual batch transcription.",
             Self::Qwen3Small => "Multilingual batch transcription.",
             Self::Qwen3Large => "Multilingual batch transcription.",
@@ -132,7 +150,7 @@ impl SoniqoModel {
     pub const fn size_bytes(self) -> u64 {
         match self {
             Self::ParakeetStreaming => 120 * 1024 * 1024,
-            Self::ParakeetBatch => 632 * 1024 * 1024,
+            Self::ParakeetBatch | Self::ParakeetV3Live => 632 * 1024 * 1024,
             Self::Omnilingual => 300 * 1024 * 1024,
             Self::Qwen3Small => 600 * 1024 * 1024,
             Self::Qwen3Large => 1_700 * 1024 * 1024,
@@ -140,7 +158,23 @@ impl SoniqoModel {
     }
 
     pub const fn supports_live(self) -> bool {
-        matches!(self, Self::ParakeetStreaming)
+        matches!(self, Self::ParakeetStreaming | Self::ParakeetV3Live)
+    }
+
+    /// True when live audio is cut into VAD windows and transcribed with the
+    /// batch model instead of using the native streaming session.
+    pub const fn is_windowed_live(self) -> bool {
+        matches!(self, Self::ParakeetV3Live)
+    }
+
+    /// The model id the Swift bridge knows. `ParakeetV3Live` is a Rust-side
+    /// mode of the batch model, so downloads, caches and transcription calls
+    /// go to `ParakeetBatch`.
+    pub const fn bridge_model(self) -> Self {
+        match self {
+            Self::ParakeetV3Live => Self::ParakeetBatch,
+            model => model,
+        }
     }
 
     pub const fn is_available_on_current_platform(self) -> bool {
@@ -157,14 +191,14 @@ impl SoniqoModel {
 
     pub const fn batch_model(self) -> Self {
         match self {
-            Self::ParakeetStreaming => Self::ParakeetBatch,
+            Self::ParakeetStreaming | Self::ParakeetV3Live => Self::ParakeetBatch,
             model => model,
         }
     }
 
     pub fn supports_language(self, language: &anlg_language::Language) -> bool {
         match self {
-            Self::ParakeetStreaming | Self::ParakeetBatch => {
+            Self::ParakeetStreaming | Self::ParakeetBatch | Self::ParakeetV3Live => {
                 anlg_language::is_parakeet_tdt_v3_language(language)
             }
             Self::Omnilingual | Self::Qwen3Small | Self::Qwen3Large => true,

@@ -17,11 +17,14 @@ specta-typescript = { workspace = true }
 
 [dependencies]
 anlg-audio = { workspace = true }
+anlg-audio-retention = { workspace = true }
 anlg-audio-utils = { workspace = true }
 anlg-db-app = { workspace = true }
 anlg-embedding = { workspace = true }
 anlg-language = { workspace = true }
+anlg-local-only = { workspace = true }
 anlg-storage = { workspace = true }
+anlg-stt-routing = { workspace = true }
 anlg-transcript = { workspace = true }
 anlg-transcription-core = { workspace = true, features = ["specta", "tauri-event"] }
 anlg-voiceprint = { workspace = true }

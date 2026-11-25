@@ -30,7 +30,8 @@ use super::response::{
     TranscriptKind, build_transcript_response, format_timestamp_now, send_ws, send_ws_best_effort,
 };
 use super::{
-    build_metadata, build_model_with_languages, parse_listen_params, redemption_time,
+    build_metadata, build_model_with_languages_and_prompt, parse_listen_params, redemption_time,
+    vocabulary_prompt,
     transcribe_chunk,
 };
 
@@ -254,7 +255,14 @@ async fn handle_websocket(
         .iter()
         .filter_map(|lang| lang.clone().try_into().ok())
         .collect();
-    match build_transcription_streams(total_channels, model.as_ref(), &languages, redemption_time) {
+    let vocabulary_prompt = vocabulary_prompt(&params.keywords);
+    match build_transcription_streams(
+        total_channels,
+        model.as_ref(),
+        &languages,
+        &vocabulary_prompt,
+        redemption_time,
+    ) {
         Ok((audio_txs, mut stream)) => {
             let mut audio_txs = audio_txs;
             let mut stop_reason = None;
@@ -468,6 +476,7 @@ fn build_transcription_streams(
     total_channels: usize,
     loaded_model: &anlg_whisper_local::LoadedWhisper,
     languages: &[anlg_whisper::Language],
+    vocabulary_prompt: &str,
     redemption_time: std::time::Duration,
 ) -> Result<
     (
@@ -483,7 +492,11 @@ fn build_transcription_streams(
         let (audio_tx, audio_rx) = mpsc::channel::<Vec<f32>>(8);
         audio_txs.push(audio_tx);
 
-        let model = build_model_with_languages(loaded_model, languages.to_vec())?;
+        let model = build_model_with_languages_and_prompt(
+            loaded_model,
+            languages.to_vec(),
+            vocabulary_prompt.to_string(),
+        )?;
         let chunk_stream = ChannelAudioSource::new(audio_rx)
             .speech_chunks(SpeechChunkingConfig::speech(redemption_time));
         let stream: TranscriptionStream = Box::pin(TranscribeChannelStream::new(

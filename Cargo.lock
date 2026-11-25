@@ -372,8 +372,10 @@ dependencies = [
  "db-app",
  "db-core",
  "dirs 6.0.0",
+ "enhanced-notes",
  "insta",
  "keyring",
+ "local-only",
  "reqwest 0.13.2",
  "rmcp",
  "rpassword",
@@ -1699,6 +1701,13 @@ dependencies = [
  "resampler",
  "rodio",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "audio-retention"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
@@ -4707,6 +4716,7 @@ dependencies = [
  "dirs 6.0.0",
  "host",
  "intercept",
+ "local-only",
  "pico-args",
  "ractor",
  "sentry",
@@ -5412,6 +5422,20 @@ name = "endi"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
+
+[[package]]
+name = "enhanced-notes"
+version = "0.1.0"
+dependencies = [
+ "reqwest 0.13.2",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "thiserror 2.0.18",
+ "tiptap",
+ "tokio",
+ "wiremock",
+]
 
 [[package]]
 name = "enum-ordinalize"
@@ -9568,6 +9592,14 @@ dependencies = [
  "transcribe-soniqo",
  "transcribe-speechanalyzer",
  "whisper-local-model",
+]
+
+[[package]]
+name = "local-only"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "url",
 ]
 
 [[package]]
@@ -15603,6 +15635,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "stt-routing"
+version = "0.1.0"
+dependencies = [
+ "language",
+ "serde",
+]
+
+[[package]]
 name = "subsetter"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16544,6 +16584,7 @@ version = "0.1.0"
 dependencies = [
  "analytics",
  "host",
+ "local-only",
  "serde",
  "serde_json",
  "specta",
@@ -17665,6 +17706,7 @@ dependencies = [
  "chrono",
  "db-app",
  "db-core",
+ "enhanced-notes",
  "gbnf",
  "language",
  "serde",
@@ -17679,6 +17721,7 @@ dependencies = [
  "tauri-specta",
  "template-app",
  "template-app-legacy",
+ "tiptap",
  "tokio",
  "tracing",
 ]
@@ -17731,6 +17774,7 @@ name = "tauri-plugin-transcription"
 version = "0.1.0"
 dependencies = [
  "audio",
+ "audio-retention",
  "audio-utils",
  "base64 0.22.1",
  "chrono",
@@ -17739,6 +17783,7 @@ dependencies = [
  "embedding",
  "futures-util",
  "language",
+ "local-only",
  "owhisper-client",
  "owhisper-interface",
  "ractor",
@@ -17749,6 +17794,7 @@ dependencies = [
  "specta-typescript",
  "sqlx",
  "storage",
+ "stt-routing",
  "tauri",
  "tauri-plugin",
  "tauri-plugin-anlg-tray",
@@ -18967,6 +19013,7 @@ dependencies = [
  "rodio",
  "serde_html_form",
  "serde_json",
+ "stt-routing",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -18993,6 +19040,7 @@ dependencies = [
  "template-app",
  "thiserror 2.0.18",
  "uuid",
+ "voiceprint",
 ]
 
 [[package]]

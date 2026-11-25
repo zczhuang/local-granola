@@ -42,6 +42,7 @@ pub struct TranscriptProcessor {
     finalize_partials: bool,
     flush_partials: bool,
     stitch_final_words: bool,
+    vocabulary: Vec<String>,
 }
 
 const MAX_PENDING_CORRECTION_JOBS: usize = 64;
@@ -117,6 +118,7 @@ impl TranscriptProcessor {
             finalize_partials: true,
             flush_partials: true,
             stitch_final_words: true,
+            vocabulary: Vec::new(),
         }
     }
 
@@ -137,6 +139,15 @@ impl TranscriptProcessor {
     /// Disable for complete utterances that cannot receive word-level continuations.
     pub fn with_final_word_stitching(mut self, stitch_final_words: bool) -> Self {
         self.stitch_final_words = stitch_final_words;
+        self
+    }
+
+    /// Custom vocabulary (names, jargon). Finalized `Final` words in each
+    /// delta are pulled toward these terms; word ids and counts never change
+    /// (see `vocabulary::correct_words`). Only spans inside one delta are
+    /// matched, so a term split across two deltas is left for the batch pass.
+    pub fn with_vocabulary(mut self, terms: Vec<String>) -> Self {
+        self.vocabulary = terms;
         self
     }
 
@@ -205,6 +216,10 @@ impl TranscriptProcessor {
             if parsed.correction.is_handoff_job() {
                 let promotion = self.register_job(parsed.correction.cloud_job_id, &new_words);
                 promotion.apply_to(&mut new_words, &mut replaced_ids);
+            }
+
+            if !self.vocabulary.is_empty() {
+                new_words = crate::vocabulary::correct_words(&new_words, &self.vocabulary);
             }
 
             let snapshot = self.partial_snapshot();
@@ -598,6 +613,32 @@ mod tests {
             state: WordState::Final,
             speaker_index: None,
         }
+    }
+
+    #[test]
+    fn vocabulary_corrects_final_words_without_changing_count_or_ids() {
+        let response =
+            multi_word_stream_response(&["we", "use", "anar", "log", "daily"], true, None);
+
+        let plain = TranscriptProcessor::new().process(&response).unwrap();
+        let corrected = TranscriptProcessor::new()
+            .with_vocabulary(vec!["Anarlog".to_string()])
+            .process(&response)
+            .unwrap();
+
+        assert_eq!(plain.new_words.len(), corrected.new_words.len());
+        for (a, b) in plain.new_words.iter().zip(&corrected.new_words) {
+            assert_eq!(
+                (a.start_ms, a.end_ms, a.channel),
+                (b.start_ms, b.end_ms, b.channel)
+            );
+        }
+        let text = corrected
+            .new_words
+            .iter()
+            .map(|w| w.text.as_str())
+            .collect::<String>();
+        assert!(text.starts_with(" we use Anarlog"), "{text}");
     }
 
     #[test]

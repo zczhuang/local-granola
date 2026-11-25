@@ -45,6 +45,7 @@ import {
   checkUnslothAvailability,
 } from "~/settings/ai/shared/local-provider-availability";
 import { sortProviders } from "~/settings/ai/shared/sort-providers";
+import { filterLocalProviders, LOCAL_LLM_PROVIDERS } from "~/shared/local-only";
 
 export type Provider = {
   id: string;
@@ -717,5 +718,8 @@ const PROVIDER_ORDER = [
   "apple_foundation",
 ] as const;
 
-export const PROVIDERS: Provider[] = sortProviders(_PROVIDERS, PROVIDER_ORDER);
+export const PROVIDERS: Provider[] = filterLocalProviders(
+  sortProviders(_PROVIDERS, PROVIDER_ORDER),
+  LOCAL_LLM_PROVIDERS,
+);
 export type ProviderId = (typeof _PROVIDERS)[number]["id"];

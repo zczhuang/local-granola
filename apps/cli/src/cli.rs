@@ -68,7 +68,7 @@ impl Args {
                 ProposalCommand::Show { .. } => "proposals_show",
                 ProposalCommand::Decline { .. } => "proposals_decline",
             },
-            Command::Mcp => "mcp",
+            Command::Mcp { .. } => "mcp",
         }
     }
 
@@ -80,7 +80,7 @@ impl Args {
             } | Command::Meetings {
                 command: MeetingCommand::Import { .. },
                 ..
-            } | Command::Mcp
+            } | Command::Mcp { allow_writes: true }
         )
     }
 }
@@ -107,8 +107,13 @@ pub enum Command {
         #[command(subcommand)]
         command: ProposalCommand,
     },
-    /// Run the Anarlog MCP server over stdio
-    Mcp,
+    /// Run the Anarlog MCP server over stdio (read-only unless --allow-writes)
+    Mcp {
+        /// Open the database read-write so the proposal and recording-import
+        /// tools can stage work. Without it every tool only reads.
+        #[arg(long)]
+        allow_writes: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -499,7 +504,9 @@ mod tests {
             assert!(docs.contains(&path), "CLI docs are missing `{path}`");
             assert!(skill.contains(&path), "Anarlog skill is missing `{path}`");
         }
-        assert_options_are_documented(&command, docs);
+        // Flags added by this fork are documented in docs-local/MCP.md.
+        let docs_with_fork = format!("{docs}\n{}", include_str!("../../../docs-local/MCP.md"));
+        assert_options_are_documented(&command, &docs_with_fork);
     }
 
     #[test]

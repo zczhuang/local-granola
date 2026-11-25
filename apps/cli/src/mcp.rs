@@ -11,9 +11,40 @@ use serde::Serialize;
 use crate::Error;
 use anlg_agent_access as access;
 
+/// Runtime options of the stdio server.
+#[derive(Debug, Clone)]
+pub struct McpOptions {
+    /// Whether the proposal and recording-import tools may write. The database
+    /// connection is read-only when false.
+    pub writable: bool,
+    /// Ollama base URL for `preview_enhanced_notes`; must be loopback.
+    #[cfg_attr(not(feature = "ollama"), allow(dead_code))]
+    pub ollama_url: String,
+    pub default_model: String,
+}
+
+impl McpOptions {
+    /// `ANARLOG_OLLAMA_URL` (or Ollama's own `OLLAMA_HOST`) and
+    /// `ANARLOG_OLLAMA_MODEL` override the defaults.
+    pub fn from_env(writable: bool) -> Self {
+        let from_env = |key: &str| std::env::var(key).ok().filter(|v| !v.trim().is_empty());
+        Self {
+            writable,
+            ollama_url: from_env("ANARLOG_OLLAMA_URL")
+                .or_else(|| {
+                    from_env("OLLAMA_HOST").map(|host| crate::preview::ollama_host_to_url(&host))
+                })
+                .unwrap_or_else(|| crate::preview::DEFAULT_OLLAMA_URL.to_string()),
+            default_model: from_env("ANARLOG_OLLAMA_MODEL")
+                .unwrap_or_else(|| crate::preview::DEFAULT_MODEL.to_string()),
+        }
+    }
+}
+
 #[derive(Clone)]
 struct AnarlogMcpServer {
     db: Arc<anlg_db_core::Db>,
+    options: Arc<McpOptions>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -32,8 +63,24 @@ enum ResourceRequest {
 }
 
 impl AnarlogMcpServer {
-    fn new(db: Arc<anlg_db_core::Db>) -> Self {
-        Self { db }
+    fn new(db: Arc<anlg_db_core::Db>, options: McpOptions) -> Self {
+        Self {
+            db,
+            options: Arc::new(options),
+        }
+    }
+
+    fn require_writes(&self, tool: &str) -> std::result::Result<(), McpError> {
+        if self.options.writable {
+            Ok(())
+        } else {
+            Err(McpError::invalid_request(
+                format!(
+                    "{tool} writes to the Anarlog database but this server is read-only; register it with `anarlog mcp --allow-writes` to enable it"
+                ),
+                None,
+            ))
+        }
     }
 }
 
@@ -41,7 +88,7 @@ impl AnarlogMcpServer {
 impl AnarlogMcpServer {
     #[tool(
         title = "Import recording",
-        description = "Create a meeting from a local audio file using the running Anarlog desktop app and its configured providers. May send audio to the configured transcription provider and use paid quota. file_path is on this computer, not a remote host. Returns durable job and meeting IDs. Reuse request_key on retries; poll get_recording_import until done or failed.",
+        description = "WRITES (requires `anarlog mcp --allow-writes`). Create a meeting from a local audio file using the running Anarlog desktop app and its configured providers. May send audio to the configured transcription provider and use paid quota. file_path is on this computer, not a remote host. Returns durable job and meeting IDs. Reuse request_key on retries; poll get_recording_import until done or failed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<access::RecordingImport>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = true)
     )]
@@ -49,6 +96,7 @@ impl AnarlogMcpServer {
         &self,
         Parameters(input): Parameters<access::ImportRecordingInput>,
     ) -> std::result::Result<CallToolResult, McpError> {
+        self.require_writes("import_recording")?;
         structured(
             &access::import_recording(self.db.pool(), input)
                 .await
@@ -203,8 +251,97 @@ impl AnarlogMcpServer {
     }
 
     #[tool(
+        title = "Search meetings",
+        description = "Full-text search over this computer's local Anarlog database: meeting titles, typed notes, enhanced notes, summaries and transcript text. Every word of the query must appear somewhere in a meeting; wrap a phrase in double quotes. Returns meeting id, title, date and snippets (transcript snippets carry an mm:ss time), newest first, paginated. Read-only; no network and no model.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<access::SearchPage>(),
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    async fn search_meetings(
+        &self,
+        Parameters(input): Parameters<access::SearchMeetingsInput>,
+    ) -> std::result::Result<CallToolResult, McpError> {
+        let page = access::search_meetings(self.db.pool(), input)
+            .await
+            .map_err(command_error)?;
+        structured(&page)
+    }
+
+    #[tool(
+        title = "Get enhanced notes",
+        description = "Read a meeting's saved enhanced notes from the local database as structured data: the user's own typed lines in order, each with its AI bullets, and each bullet's resolved sources (speaker, start/end time, the cited transcript words), plus decisions, action items (owner and due when recorded) and open questions. Also returns a Markdown rendering with [^n] footnotes whose definitions start with [mm:ss]. Read-only; no network and no model. Fails with not found when the meeting has no enhanced notes.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<access::EnhancedNotes>(),
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    async fn get_enhanced_notes(
+        &self,
+        Parameters(input): Parameters<access::GetEnhancedNotesInput>,
+    ) -> std::result::Result<CallToolResult, McpError> {
+        let notes = access::get_enhanced_notes(self.db.pool(), input)
+            .await
+            .map_err(command_error)?;
+        structured(&notes)
+    }
+
+    #[tool(
+        title = "Get transcript segment",
+        description = "Read the transcript text for a source reference (transcript_id plus start_word_id and end_word_id, as cited by get_enhanced_notes) or for a time range (start_ms and end_ms as stored on transcript words). Returns speaker turns with speaker names and mm:ss times, and a ready-to-read text block. Read-only; reads only the local database; no network and no model.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<access::TranscriptSegment>(),
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    async fn get_transcript_segment(
+        &self,
+        Parameters(input): Parameters<access::GetTranscriptSegmentInput>,
+    ) -> std::result::Result<CallToolResult, McpError> {
+        let segment = access::get_transcript_segment(self.db.pool(), input)
+            .await
+            .map_err(command_error)?;
+        structured(&segment)
+    }
+
+    #[tool(
+        title = "Preview enhanced notes",
+        description = "CALLS THE LOCAL MODEL. Runs the enhanced-notes pass for one meeting with the Ollama model on this computer (loopback only; any non-loopback Ollama URL is refused) and returns the result in the same shape as get_enhanced_notes with origin \"preview\". NOTHING IS SAVED: the database is not written and the desktop app's notes are untouched. It can take minutes on long meetings. To keep a result, a human applies it in the desktop app; you may stage the markdown with propose_summary_edit, which also stays pending until a human applies it.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<PreviewEnhancedNotes>(),
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    async fn preview_enhanced_notes(
+        &self,
+        Parameters(input): Parameters<PreviewEnhancedNotesInput>,
+    ) -> std::result::Result<CallToolResult, McpError> {
+        let model = input
+            .model
+            .as_deref()
+            .map(str::trim)
+            .filter(|model| !model.is_empty())
+            .unwrap_or(&self.options.default_model)
+            .to_string();
+        let result = self.run_preview(&input.meeting_id, &model).await?;
+        structured(&result)
+    }
+
+    #[tool(
         title = "Propose summary edit",
-        description = "Propose a complete summary replacement. The proposal stays pending until a human applies it in the Anarlog desktop app. Specify target_id when the meeting has multiple summaries.",
+        description = "WRITES a pending proposal row (requires `anarlog mcp --allow-writes`); never edits the meeting itself. Propose a complete summary replacement. The proposal stays pending until a human applies it in the Anarlog desktop app. Specify target_id when the meeting has multiple summaries.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<access::Proposal>(),
         annotations(
             read_only_hint = false,
@@ -217,6 +354,7 @@ impl AnarlogMcpServer {
         &self,
         Parameters(input): Parameters<ProposeSummaryInput>,
     ) -> std::result::Result<CallToolResult, McpError> {
+        self.require_writes("propose_summary_edit")?;
         let proposal = access::create_proposal(
             self.db.pool(),
             access::CreateProposalInput {
@@ -234,7 +372,7 @@ impl AnarlogMcpServer {
 
     #[tool(
         title = "Propose memo edit",
-        description = "Propose a complete memo replacement. The proposal stays pending until a human applies it in the Anarlog desktop app.",
+        description = "WRITES a pending proposal row (requires `anarlog mcp --allow-writes`); never edits the meeting itself. Propose a complete memo replacement. The proposal stays pending until a human applies it in the Anarlog desktop app.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<access::Proposal>(),
         annotations(
             read_only_hint = false,
@@ -247,6 +385,7 @@ impl AnarlogMcpServer {
         &self,
         Parameters(input): Parameters<ProposeMemoInput>,
     ) -> std::result::Result<CallToolResult, McpError> {
+        self.require_writes("propose_memo_edit")?;
         let proposal = access::create_proposal(
             self.db.pool(),
             access::CreateProposalInput {
@@ -306,7 +445,7 @@ impl AnarlogMcpServer {
 
     #[tool(
         title = "Decline proposal",
-        description = "Decline a pending proposal without changing the meeting. Applied proposals cannot be declined.",
+        description = "WRITES (requires `anarlog mcp --allow-writes`). Decline a pending proposal without changing the meeting. Applied proposals cannot be declined.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<access::Proposal>(),
         annotations(
             read_only_hint = false,
@@ -319,10 +458,82 @@ impl AnarlogMcpServer {
         &self,
         Parameters(input): Parameters<access::DeclineProposalInput>,
     ) -> std::result::Result<CallToolResult, McpError> {
+        self.require_writes("decline_proposal")?;
         let proposal = access::decline_proposal(self.db.pool(), input)
             .await
             .map_err(command_error)?;
         structured(&proposal)
+    }
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
+struct PreviewEnhancedNotesInput {
+    /// Anarlog meeting id
+    meeting_id: String,
+    /// Ollama model name; defaults to the configured notes model
+    model: Option<String>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
+struct PreviewEnhancedNotes {
+    /// Always false: previews are never written to the database.
+    saved: bool,
+    model: String,
+    /// Problems worth knowing about, such as dropped unsupported bullets.
+    warnings: Vec<String>,
+    notes: access::EnhancedNotes,
+}
+
+impl AnarlogMcpServer {
+    #[cfg(feature = "ollama")]
+    async fn run_preview(
+        &self,
+        meeting_id: &str,
+        model: &str,
+    ) -> std::result::Result<PreviewEnhancedNotes, McpError> {
+        use crate::preview::{EnhancedNotesBackend, PreviewBackend};
+
+        // Refuse a non-loopback URL before reading or sending anything.
+        let backend = EnhancedNotesBackend::new(&self.options.ollama_url).map_err(preview_error)?;
+        let inputs = access::load_enhance_inputs(self.db.pool(), meeting_id)
+            .await
+            .map_err(command_error)?;
+        let run = backend
+            .preview(&inputs, model)
+            .await
+            .map_err(preview_error)?;
+        let notes = access::assemble_preview_from_doc(&inputs, &run.doc, run.generation);
+        Ok(PreviewEnhancedNotes {
+            saved: false,
+            model: model.to_string(),
+            warnings: run.warnings,
+            notes,
+        })
+    }
+
+    #[cfg(not(feature = "ollama"))]
+    async fn run_preview(
+        &self,
+        _meeting_id: &str,
+        _model: &str,
+    ) -> std::result::Result<PreviewEnhancedNotes, McpError> {
+        Err(McpError::invalid_request(
+            "this anarlog build was compiled without the `ollama` feature, so preview_enhanced_notes is unavailable",
+            None,
+        ))
+    }
+}
+
+#[cfg(feature = "ollama")]
+fn preview_error(error: crate::preview::PreviewError) -> McpError {
+    use crate::preview::PreviewError;
+    match error {
+        PreviewError::NotLoopback(_) | PreviewError::Invalid(_) => {
+            McpError::invalid_params(error.to_string(), None)
+        }
+        PreviewError::Backend(_) => McpError::internal_error(error.to_string(), None),
     }
 }
 
@@ -353,7 +564,7 @@ impl ServerHandler for AnarlogMcpServer {
         .with_protocol_version(ProtocolVersion::V_2026_07_28)
         .with_server_info(Implementation::new("anarlog", crate::VERSION))
         .with_instructions(
-            "Local access to Anarlog meeting data. Start with list_meetings to resolve a meeting_id; to scope work to a project or client, call list_folders and pass a returned path as folder_path. Then call get_meeting for notes, summaries, participants, and action items. Request transcript pages with get_meeting_transcript and continue with pagination.next_offset; each page is capped at 500 words. Use get_recurring_meeting_history for series context. Use export_meeting only when the task needs the complete record including transcripts. To persist an edit, call propose_summary_edit or propose_memo_edit; the result stays pending until a human applies it in the desktop app. List or inspect staged work with list_proposals and get_proposal. decline_proposal discards a pending proposal without changing the meeting. Never invent meeting titles, dates, or ids. If list_meetings returns no meetings, say so. Never access SQLite directly, or claim a proposal was applied. Documentation: https://docs.anarlog.so",
+            "Local access to Anarlog meeting data. Start with list_meetings to resolve a meeting_id; to scope work to a project or client, call list_folders and pass a returned path as folder_path. Then call get_meeting for notes, summaries, participants, and action items. Request transcript pages with get_meeting_transcript and continue with pagination.next_offset; each page is capped at 500 words. Use get_recurring_meeting_history for series context. Use search_meetings to find meetings by words in titles, notes or transcripts. get_enhanced_notes returns the saved enhanced notes with cited sources, and get_transcript_segment reads the transcript behind a citation or a time range. preview_enhanced_notes runs the local Ollama model and returns an unsaved result. Everything runs on this computer. Use export_meeting only when the task needs the complete record including transcripts. This server is read-only unless it was started with --allow-writes. To persist an edit, call propose_summary_edit or propose_memo_edit; the result stays pending until a human applies it in the desktop app. List or inspect staged work with list_proposals and get_proposal. decline_proposal discards a pending proposal without changing the meeting. Never invent meeting titles, dates, or ids. If list_meetings returns no meetings, say so. Never access SQLite directly, or claim a proposal was applied. Documentation: https://docs.anarlog.so",
         )
     }
 
@@ -496,8 +707,10 @@ impl ServerHandler for AnarlogMcpServer {
     }
 }
 
-pub async fn serve(db: Arc<anlg_db_core::Db>) -> crate::Result<()> {
-    let running = AnarlogMcpServer::new(db)
+/// Serve MCP over stdin/stdout. This is the only transport: the process never
+/// binds a socket or opens a network listener, in local-only builds or any other.
+pub async fn serve(db: Arc<anlg_db_core::Db>, options: McpOptions) -> crate::Result<()> {
+    let running = AnarlogMcpServer::new(db, options)
         .serve(rmcp::transport::stdio())
         .await
         .map_err(|error| Error::operation("start MCP server", error.to_string()))?;
@@ -582,6 +795,7 @@ fn command_error(error: access::Error) -> McpError {
         access::Error::NotFound(what) => {
             McpError::invalid_params(format!("{what} not found"), None)
         }
+        access::Error::Invalid(reason) => McpError::invalid_params(reason, None),
         other => internal_error(other),
     }
 }
@@ -625,7 +839,7 @@ mod tests {
         .execute(db.pool())
         .await
         .unwrap();
-        let server = AnarlogMcpServer::new(Arc::new(db));
+        let server = AnarlogMcpServer::new(Arc::new(db), test_options(true));
 
         let result = server
             .list_meetings(Parameters(access::ListMeetingsInput {
@@ -686,7 +900,7 @@ mod tests {
         .await
         .unwrap();
         let (server_transport, client_transport) = tokio::io::duplex(64 * 1024);
-        let server = AnarlogMcpServer::new(Arc::new(db));
+        let server = AnarlogMcpServer::new(Arc::new(db), test_options(true));
         let info = server.get_info();
         let server_handle = tokio::spawn(async move { server.serve(server_transport).await });
 
@@ -714,22 +928,41 @@ mod tests {
             [
                 "decline_proposal",
                 "export_meeting",
+                "get_enhanced_notes",
                 "get_meeting",
                 "get_meeting_transcript",
                 "get_proposal",
                 "get_recording_import",
                 "get_recurring_meeting_history",
+                "get_transcript_segment",
                 "import_recording",
                 "list_folders",
                 "list_meetings",
                 "list_proposals",
+                "preview_enhanced_notes",
                 "propose_memo_edit",
                 "propose_summary_edit",
+                "search_meetings",
             ]
         );
         let mcp_docs = include_str!("../../../docs/reference/mcp.mdx");
         let mcp_skill = include_str!("../../../skills/anarlog/references/mcp.md");
+        // Tools added by this fork are documented in docs-local/MCP.md.
+        let fork_docs = include_str!("../../../docs-local/MCP.md");
+        const FORK_TOOLS: [&str; 4] = [
+            "search_meetings",
+            "get_enhanced_notes",
+            "get_transcript_segment",
+            "preview_enhanced_notes",
+        ];
         for tool_name in &tool_names {
+            if FORK_TOOLS.contains(&tool_name.as_str()) {
+                assert!(
+                    fork_docs.contains(tool_name),
+                    "docs-local/MCP.md is missing `{tool_name}`"
+                );
+                continue;
+            }
             assert!(
                 mcp_docs.contains(tool_name),
                 "MCP docs are missing `{tool_name}`"
@@ -745,12 +978,26 @@ mod tests {
                 .get("properties")
                 .and_then(Value::as_object)
                 .expect("tool input properties");
+            let docs = if FORK_TOOLS.contains(&tool.name.as_ref()) {
+                fork_docs
+            } else {
+                mcp_docs
+            };
             for parameter in properties.keys() {
                 assert!(
-                    mcp_docs.contains(&format!("`{parameter}`")),
-                    "MCP docs are missing `{parameter}`"
+                    docs.contains(&format!("`{parameter}`")),
+                    "docs are missing `{parameter}` of {}",
+                    tool.name
                 );
             }
+            let description = tool.description.as_deref().unwrap_or_default();
+            assert!(
+                FORK_TOOLS.contains(&tool.name.as_ref())
+                    || !description.contains("WRITES")
+                    || description.contains("--allow-writes"),
+                "{} must say how to enable writes",
+                tool.name
+            );
             assert_eq!(
                 tool.output_schema
                     .as_ref()
@@ -768,7 +1015,11 @@ mod tests {
             );
             assert_eq!(annotations.read_only_hint, Some(!write_tool));
             assert_eq!(annotations.destructive_hint, Some(false));
-            assert_eq!(annotations.idempotent_hint, Some(!write_tool));
+            // The preview calls a sampling model, so repeated calls differ.
+            assert_eq!(
+                annotations.idempotent_hint,
+                Some(!write_tool && tool.name != "preview_enhanced_notes")
+            );
             assert_eq!(
                 annotations.open_world_hint,
                 Some(tool.name == "import_recording")
@@ -825,7 +1076,7 @@ mod tests {
         let db = Arc::new(anlg_db_core::Db::connect_memory_plain().await.unwrap());
         anlg_db_app::prepare_schema(&db).await.unwrap();
         let (server_transport, client_transport) = tokio::io::duplex(64 * 1024);
-        let server = AnarlogMcpServer::new(db);
+        let server = AnarlogMcpServer::new(db, test_options(false));
         let server_task =
             tokio::spawn(async move { server.serve(server_transport).await.unwrap() });
         let mut client = IntoTransport::<rmcp::RoleClient, _, _>::into_transport(client_transport);
@@ -865,10 +1116,282 @@ mod tests {
         let tools = client.receive().await.unwrap();
         let tools = serde_json::to_value(tools).unwrap();
         assert_eq!(tools["result"]["resultType"], "complete");
-        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 13);
+        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 17);
 
         drop(client);
         server_task.await.unwrap().cancel().await.unwrap();
+    }
+
+    async fn meeting_db() -> Arc<anlg_db_core::Db> {
+        let db = anlg_db_core::Db::connect_memory_plain().await.unwrap();
+        anlg_db_app::prepare_schema(&db).await.unwrap();
+        sqlx::query(
+            "INSERT INTO sessions (id, title, started_at) VALUES ('m1', 'Launch planning', '2026-07-13')",
+        )
+        .execute(db.pool())
+        .await
+        .unwrap();
+        let words = serde_json::json!([
+            {"id": "w1", "text": " We", "start_ms": 0, "end_ms": 300, "channel": 0},
+            {"id": "w2", "text": " ship", "start_ms": 300, "end_ms": 600, "channel": 0},
+            {"id": "w3", "text": " Friday.", "start_ms": 600, "end_ms": 1000, "channel": 0},
+            {"id": "w4", "text": " Dana", "start_ms": 65_000, "end_ms": 65_400, "channel": 1},
+            {"id": "w5", "text": " owns", "start_ms": 65_400, "end_ms": 65_800, "channel": 1},
+            {"id": "w6", "text": " pricing.", "start_ms": 65_800, "end_ms": 66_500, "channel": 1}
+        ]);
+        sqlx::query("INSERT INTO transcripts (id, session_id, words_json) VALUES ('t1', 'm1', ?)")
+            .bind(words.to_string())
+            .execute(db.pool())
+            .await
+            .unwrap();
+        let note = serde_json::json!({"type": "doc", "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "Launch date"}]}
+        ]});
+        sqlx::query(
+            "INSERT INTO session_documents (id, session_id, kind, body_format, body)
+             VALUES ('m1', 'm1', 'note', 'prosemirror_json', ?)",
+        )
+        .bind(note.to_string())
+        .execute(db.pool())
+        .await
+        .unwrap();
+        let enhanced = serde_json::json!({"type": "doc", "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "Launch date"}]},
+            {"type": "bulletList", "content": [{"type": "listItem", "attrs": {"aiId": "a1", "src": [
+                {"transcript_id": "t1", "start_word_id": "w1", "end_word_id": "w3", "start_ms": 0, "end_ms": 1000}
+            ]}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Ship on Friday"}]}]}]}
+        ]});
+        sqlx::query(
+            "INSERT INTO session_documents (id, session_id, kind, body_format, body)
+             VALUES ('enh', 'm1', 'summary', 'prosemirror_json', ?)",
+        )
+        .bind(enhanced.to_string())
+        .execute(db.pool())
+        .await
+        .unwrap();
+        Arc::new(db)
+    }
+
+    #[tokio::test]
+    async fn read_tools_return_structured_results() {
+        let server = AnarlogMcpServer::new(meeting_db().await, test_options(false));
+
+        let search = server
+            .search_meetings(Parameters(access::SearchMeetingsInput {
+                query: "pricing".into(),
+                folder_path: None,
+                limit: None,
+                offset: None,
+            }))
+            .await
+            .unwrap()
+            .structured_content
+            .unwrap();
+        assert_eq!(search["hits"][0]["meeting_id"], "m1");
+        assert_eq!(search["hits"][0]["title"], "Launch planning");
+        assert_eq!(search["hits"][0]["date"], "2026-07-13");
+        assert_eq!(search["hits"][0]["snippets"][0]["source"], "transcript");
+        assert_eq!(search["hits"][0]["snippets"][0]["time"], "01:05");
+
+        let enhanced = server
+            .get_enhanced_notes(Parameters(access::GetEnhancedNotesInput {
+                meeting_id: "m1".into(),
+                document_id: None,
+            }))
+            .await
+            .unwrap()
+            .structured_content
+            .unwrap();
+        assert_eq!(enhanced["lines"][0]["text"], "Launch date");
+        let bullet = &enhanced["lines"][0]["ai_bullets"][0];
+        assert_eq!(bullet["text"], "Ship on Friday");
+        assert_eq!(bullet["sources"][0]["text"], "We ship Friday.");
+        assert_eq!(bullet["sources"][0]["start"], "00:00");
+        assert!(
+            enhanced["markdown"]
+                .as_str()
+                .unwrap()
+                .contains("[^1]: [00:00–00:01]")
+        );
+
+        let segment = server
+            .get_transcript_segment(Parameters(access::GetTranscriptSegmentInput {
+                meeting_id: "m1".into(),
+                transcript_id: Some("t1".into()),
+                start_word_id: Some("w4".into()),
+                end_word_id: Some("w6".into()),
+                start_ms: None,
+                end_ms: None,
+                max_words: None,
+            }))
+            .await
+            .unwrap()
+            .structured_content
+            .unwrap();
+        assert_eq!(segment["segments"][0]["text"], "Dana owns pricing.");
+        assert_eq!(segment["word_count"], 3);
+
+        let invalid = server
+            .get_transcript_segment(Parameters(access::GetTranscriptSegmentInput {
+                meeting_id: "m1".into(),
+                transcript_id: None,
+                start_word_id: None,
+                end_word_id: None,
+                start_ms: None,
+                end_ms: None,
+                max_words: None,
+            }))
+            .await
+            .unwrap_err();
+        assert_eq!(invalid.code, ErrorCode::INVALID_PARAMS);
+    }
+
+    #[tokio::test]
+    async fn read_only_server_refuses_write_tools() {
+        let server = AnarlogMcpServer::new(meeting_db().await, test_options(false));
+        let error = server
+            .propose_memo_edit(Parameters(ProposeMemoInput {
+                meeting_id: "m1".into(),
+                content: "x".into(),
+            }))
+            .await
+            .unwrap_err();
+        assert!(error.message.contains("--allow-writes"));
+        let pending: i64 = sqlx::query_scalar("SELECT count(*) FROM session_proposals")
+            .fetch_one(server.db.pool())
+            .await
+            .unwrap();
+        assert_eq!(pending, 0);
+
+        let server = AnarlogMcpServer::new(server.db.clone(), test_options(true));
+        server
+            .propose_memo_edit(Parameters(ProposeMemoInput {
+                meeting_id: "m1".into(),
+                content: "x".into(),
+            }))
+            .await
+            .unwrap();
+    }
+
+    #[cfg(feature = "ollama")]
+    #[tokio::test]
+    async fn preview_calls_the_local_model_and_saves_nothing() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+
+        let model = MockServer::start().await;
+        let reply = serde_json::json!({
+            "sections": [{"anchor": "a1", "bullets": [
+                {"text": "Ship Friday", "sources": ["s1"]},
+                {"text": "Made up", "sources": ["s42"]}
+            ]}],
+            "decisions": [{"text": "Friday launch", "sources": ["s1"]}],
+            "action_items": [{"text": "Finish pricing", "owner": "Dana", "due": "Friday", "sources": ["s2"]}],
+            "open_questions": []
+        });
+        Mock::given(method("POST"))
+            .and(path("/api/chat"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "message": {"role": "assistant", "content": reply.to_string()},
+                "done": true
+            })))
+            .expect(1)
+            .mount(&model)
+            .await;
+
+        let db = meeting_db().await;
+        let docs_before: i64 = sqlx::query_scalar("SELECT count(*) FROM session_documents")
+            .fetch_one(db.pool())
+            .await
+            .unwrap();
+        let mut options = test_options(false);
+        options.ollama_url = model.uri();
+        let server = AnarlogMcpServer::new(db.clone(), options);
+
+        let result = server
+            .preview_enhanced_notes(Parameters(PreviewEnhancedNotesInput {
+                meeting_id: "m1".into(),
+                model: Some("stub-model".into()),
+            }))
+            .await
+            .unwrap()
+            .structured_content
+            .unwrap();
+        assert_eq!(result["saved"], false);
+        assert_eq!(result["model"], "stub-model");
+        assert_eq!(result["notes"]["origin"], "preview");
+        assert!(result["notes"]["document_id"].is_null());
+        // Generated by the same engine the app saves with.
+        assert_eq!(result["notes"]["generation"]["backend"], "enhanced-notes");
+        assert_eq!(result["notes"]["generation"]["model"], "stub-model");
+        let line = &result["notes"]["lines"][0];
+        assert_eq!(line["text"], "Launch date");
+        assert_eq!(line["ai_bullets"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            line["ai_bullets"][0]["sources"][0]["text"],
+            "We ship Friday."
+        );
+        assert_eq!(result["notes"]["decisions"][0]["text"], "Friday launch");
+        let action = &result["notes"]["action_items"][0];
+        assert_eq!(action["owner"], "Dana");
+        assert_eq!(
+            action["sources"][0]["speakers"].as_array().unwrap().len(),
+            1
+        );
+        assert!(
+            result["warnings"][0]
+                .as_str()
+                .unwrap()
+                .contains("Dropped 1")
+        );
+
+        let requests = model.received_requests().await.unwrap();
+        let body: Value = serde_json::from_slice(&requests[0].body).unwrap();
+        assert_eq!(body["model"], "stub-model");
+        assert_eq!(body["stream"], false);
+        assert!(body["format"]["properties"]["sections"].is_object());
+        let prompt = body["messages"][1]["content"].as_str().unwrap();
+        assert!(prompt.contains("a1: Launch date"));
+        assert!(prompt.contains("s1 ["));
+
+        let docs_after: i64 = sqlx::query_scalar("SELECT count(*) FROM session_documents")
+            .fetch_one(db.pool())
+            .await
+            .unwrap();
+        assert_eq!(docs_before, docs_after);
+    }
+
+    #[cfg(feature = "ollama")]
+    #[tokio::test]
+    async fn preview_refuses_non_loopback_ollama_urls() {
+        for url in [
+            "https://api.openai.com",
+            "http://192.168.1.9:11434",
+            "0.0.0.0:11434",
+        ] {
+            let mut options = test_options(false);
+            options.ollama_url = url.to_string();
+            let server = AnarlogMcpServer::new(meeting_db().await, options);
+            let error = server
+                .preview_enhanced_notes(Parameters(PreviewEnhancedNotesInput {
+                    meeting_id: "m1".into(),
+                    model: None,
+                }))
+                .await
+                .unwrap_err();
+            assert_eq!(error.code, ErrorCode::INVALID_PARAMS, "{url}");
+            assert!(error.message.contains("loopback"), "{url}");
+        }
+    }
+
+    fn test_options(writable: bool) -> McpOptions {
+        McpOptions {
+            writable,
+            ollama_url: crate::preview::DEFAULT_OLLAMA_URL.to_string(),
+            default_model: "test-model".to_string(),
+        }
     }
 
     fn current_client_meta() -> RequestMetaObject {

@@ -136,6 +136,17 @@ impl LiveTranscriptEngine {
         }
     }
 
+    /// LOCAL-GRANOLA: pulls finalized words toward the session's vocabulary (calendar names,
+    /// dictionary terms; the same list the listener receives as `keywords`). Only the soniqo
+    /// (Parakeet) path takes it: other engines either accept keywords natively or emit text we
+    /// should not rewrite. Word ids, timings and counts are unchanged.
+    pub fn with_vocabulary(mut self, terms: &[String]) -> Self {
+        if matches!(self.normalizer, TranscriptNormalizer::Soniqo(_)) && !terms.is_empty() {
+            self.processor = std::mem::take(&mut self.processor).with_vocabulary(terms.to_vec());
+        }
+        self
+    }
+
     pub fn process(&mut self, response: &StreamResponse) -> Option<LiveTranscriptUpdate> {
         let mut normalized = response.clone();
         self.normalizer.normalize(&mut normalized);

@@ -1,3 +1,9 @@
+import {
+  DEFAULT_LOCAL_LLM_MODEL,
+  DEFAULT_LOCAL_LLM_PROVIDER,
+  LOCAL_ONLY,
+} from "~/shared/local-only";
+
 export const SETTING_DEFINITIONS = {
   intelligence_disabled: {
     type: "boolean",
@@ -208,7 +214,8 @@ export const SETTING_DEFINITIONS = {
   audio_retention: {
     type: "string",
     path: ["general", "audio_retention"],
-    default: "forever" as string,
+    // Local-only build: delete audio as soon as processing is done.
+    default: (LOCAL_ONLY ? "none" : "forever") as string,
   },
   remember_speakers: {
     type: "boolean",
@@ -374,10 +381,16 @@ export const SETTING_DEFINITIONS = {
   current_llm_provider: {
     type: "string",
     path: ["ai", "current_llm_provider"],
+    default: (LOCAL_ONLY ? DEFAULT_LOCAL_LLM_PROVIDER : undefined) as
+      | string
+      | undefined,
   },
   current_llm_model: {
     type: "string",
     path: ["ai", "current_llm_model"],
+    default: (LOCAL_ONLY ? DEFAULT_LOCAL_LLM_MODEL : undefined) as
+      | string
+      | undefined,
   },
   current_llm_reasoning_effort: {
     type: "string",
@@ -391,6 +404,19 @@ export const SETTING_DEFINITIONS = {
   current_stt_model: {
     type: "string",
     path: ["ai", "current_stt_model"],
+  },
+  // LOCAL-GRANOLA: post-meeting Whisper re-pass: off | auto | always.
+  stt_whisper_repass: {
+    type: "string",
+    path: ["ai", "stt_whisper_repass"],
+    default: "auto" as string,
+  },
+  // LOCAL-GRANOLA: live engine override: auto | parakeet | whisper. `auto` lets the
+  // stt-routing router force the Whisper re-pass for Mandarin / mixed meetings.
+  stt_engine_override: {
+    type: "string",
+    path: ["ai", "stt_engine_override"],
+    default: "auto" as string,
   },
   local_stt_model_path: {
     type: "string",

@@ -2,6 +2,7 @@ import { Trans } from "@lingui/react/macro";
 
 import { ConfigureProviders } from "./configure";
 import { SttSettingsProvider } from "./context";
+import { SttEngineOptions } from "./engine-options";
 import { SelectProviderAndModel } from "./select";
 
 import { SettingsPageTitle } from "~/settings/page-title";
@@ -12,6 +13,7 @@ export function STT() {
       <div className="flex flex-col gap-6">
         <SettingsPageTitle title={<Trans>Transcription</Trans>} />
         <SelectProviderAndModel />
+        <SttEngineOptions />
         <ConfigureProviders />
       </div>
     </SttSettingsProvider>

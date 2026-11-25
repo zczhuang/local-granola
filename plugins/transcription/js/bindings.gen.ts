@@ -781,6 +781,63 @@ export const commands = {
       else return { status: "error", error: e as any };
     }
   },
+  /**
+   * Frontend entry point for `hold_session_audio`: the post-meeting re-pass pins a session's audio
+   * against the Rust retention sweep, which the TS-side hold cannot reach. Counted like the Rust API.
+   */
+  async acquireSessionAudioHold(
+    sessionId: string,
+  ): Promise<Result<null, string>> {
+    try {
+      return {
+        status: "ok",
+        data: await TAURI_INVOKE(
+          "plugin:transcription|acquire_session_audio_hold",
+          { sessionId },
+        ),
+      };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+  /**
+   * Frontend entry point for `release_session_audio_hold`.
+   */
+  async dropSessionAudioHold(sessionId: string): Promise<Result<null, string>> {
+    try {
+      return {
+        status: "ok",
+        data: await TAURI_INVOKE(
+          "plugin:transcription|drop_session_audio_hold",
+          {
+            sessionId,
+          },
+        ),
+      };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+  /**
+   * Asks the router which engine the session's speech needs. Pure; no audio or model access.
+   */
+  async decideSttRoute(
+    input: SttRouteInput,
+  ): Promise<Result<SttRouteDecision, string>> {
+    try {
+      return {
+        status: "ok",
+        data: await TAURI_INVOKE("plugin:transcription|decide_stt_route", {
+          input,
+        }),
+      };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
   async getMeetingCaptureCapability(
     micDevice: string | null,
   ): Promise<Result<MeetingCaptureCapability, string>> {
@@ -1468,6 +1525,34 @@ export type StreamWord = {
   speaker: number | null;
   punctuated_word: string | null;
   language: string | null;
+};
+export type SttRouteDecision =
+  /**
+   * Not enough evidence yet.
+   */
+  | { engine: "pending" }
+  | { engine: "parakeet" }
+  /**
+   * `lang` pins Whisper to one language; `None` lets it detect per chunk (mixed meetings).
+   */
+  | { engine: "whisper"; lang: string | null };
+export type SttRouteInput = {
+  /**
+   * `auto | parakeet | whisper`; anything else is `auto`.
+   */
+  preference: string | null;
+  /**
+   * Languages the user declared for the session (ISO codes, `zh-CN` style accepted).
+   */
+  declared_languages: string[];
+  /**
+   * Live transcript text so far.
+   */
+  sample_text: string;
+  /**
+   * Speech transcribed so far, in milliseconds.
+   */
+  speech_ms: number;
 };
 export type Subtitle = { tokens: Token[] };
 export type SummaryMode = "regenerate" | "if_empty" | "refresh";

@@ -67,6 +67,7 @@ impl LoadedWhisperBuilder {
 pub struct WhisperBuilder {
     model_path: Option<String>,
     languages: Option<Vec<Language>>,
+    vocabulary_prompt: Option<String>,
 }
 
 impl WhisperBuilder {
@@ -80,11 +81,21 @@ impl WhisperBuilder {
         self
     }
 
+    /// Custom-vocabulary prompt (see `stt_routing::vocab::build_whisper_prompt`),
+    /// appended after the rolling transcript context on every chunk.
+    pub fn vocabulary_prompt(mut self, prompt: impl Into<String>) -> Self {
+        self.vocabulary_prompt = Some(prompt.into());
+        self
+    }
+
     pub fn build(self) -> Result<Whisper, crate::Error> {
         LoadedWhisper::builder()
             .model_path(self.model_path.unwrap())
             .build()?
-            .session(self.languages.unwrap_or_default())
+            .session_with_prompt(
+                self.languages.unwrap_or_default(),
+                self.vocabulary_prompt.unwrap_or_default(),
+            )
     }
 }
 
@@ -99,11 +110,20 @@ impl LoadedWhisper {
     }
 
     pub fn session(&self, languages: Vec<Language>) -> Result<Whisper, crate::Error> {
+        self.session_with_prompt(languages, String::new())
+    }
+
+    pub fn session_with_prompt(
+        &self,
+        languages: Vec<Language>,
+        vocabulary_prompt: String,
+    ) -> Result<Whisper, crate::Error> {
         Ok(Whisper {
             id: uuid::Uuid::new_v4().to_string(),
             index: 0,
             languages,
             dynamic_prompt: String::new(),
+            vocabulary_prompt,
             state: self.ctx.create_state()?,
             token_beg: self.token_beg,
         })
@@ -117,6 +137,7 @@ pub struct Whisper {
     index: usize,
     languages: Vec<Language>,
     dynamic_prompt: String,
+    vocabulary_prompt: String,
     state: WhisperState,
     token_beg: WhisperTokenId,
 }
@@ -142,8 +163,13 @@ impl Whisper {
         let params = {
             let mut p = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
 
-            let parts = [self.dynamic_prompt.trim()];
-            let joined = parts.join("\n");
+            // Whisper keeps the *tail* of an over-long prompt, so the custom
+            // vocabulary goes after the rolling context.
+            let joined = [self.dynamic_prompt.trim(), self.vocabulary_prompt.trim()]
+                .into_iter()
+                .filter(|part| !part.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n");
             let initial_prompt = joined.trim();
 
             tracing::info!(input_audio_length_sec = ?input_audio_length_sec, "transcribe_started");
@@ -222,6 +248,37 @@ impl Whisper {
         }
 
         Ok(segments)
+    }
+
+    /// Language-detection probabilities for `audio` (first ~30 s are used),
+    /// as `(iso639 code, probability)` restricted to `candidates`, most likely
+    /// first. Used by `stt-routing` to choose between Parakeet and Whisper.
+    ///
+    /// LOCAL-GRANOLA(mac-untested): mirrors `get_language` but returns the
+    /// whole distribution instead of the argmax. Not compiled on Linux CI
+    /// (whisper-rs is fetched from codeberg).
+    pub fn detect_language_probs(
+        &mut self,
+        audio: &[f32],
+        candidates: &[Language],
+    ) -> Result<Vec<(String, f32)>, crate::Error> {
+        if audio.is_empty() || candidates.is_empty() {
+            return Ok(vec![]);
+        }
+
+        self.state.pcm_to_mel(audio, 1)?;
+        let (_lang_id, lang_probs) = self.state.lang_detect(0, 1)?;
+
+        let mut out: Vec<(String, f32)> = candidates
+            .iter()
+            .filter_map(|lang| {
+                lang_probs
+                    .get(lang.whisper_index())
+                    .map(|p| (lang.as_ref().to_string(), *p))
+            })
+            .collect();
+        out.sort_by(|a, b| b.1.total_cmp(&a.1));
+        Ok(out)
     }
 
     fn get_language(&mut self, audio: &[f32]) -> Result<Option<String>, crate::Error> {

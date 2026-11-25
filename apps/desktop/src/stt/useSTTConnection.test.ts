@@ -11,7 +11,9 @@ const {
   isModelDownloadedMock,
   readiness,
   startServerForPathMock,
+  localOnlyState,
 } = vi.hoisted(() => ({
+  localOnlyState: { value: false },
   authState: {
     session: { access_token: "access-token" } as
       | { access_token: string }
@@ -41,6 +43,13 @@ vi.mock("@anlg/plugin-local-stt", () => ({
     getServerForModel: getServerForModelMock,
     isModelDownloaded: isModelDownloadedMock,
     startServerForPath: startServerForPathMock,
+  },
+}));
+
+vi.mock("~/shared/local-only", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/shared/local-only")>()),
+  get LOCAL_ONLY() {
+    return localOnlyState.value;
   },
 }));
 
@@ -102,6 +111,7 @@ import { useSTTConnection } from "./useSTTConnection";
 
 describe("useSTTConnection", () => {
   beforeEach(() => {
+    localOnlyState.value = false;
     config.current_stt_provider = "anarlog";
     config.current_stt_model = "cloud";
     config.local_stt_model_path = "";
@@ -262,5 +272,70 @@ describe("useSTTConnection", () => {
     expect(startServerForPathMock).toHaveBeenCalledWith(
       "/models/ggml-small.bin",
     );
+  });
+
+  describe("local-only", () => {
+    const wrapper = () => {
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+      return ({ children }: { children: ReactNode }) =>
+        createElement(QueryClientProvider, { client: queryClient }, children);
+    };
+
+    it("returns no connection for the hosted cloud model", () => {
+      localOnlyState.value = true;
+      const { result } = renderHook(() => useSTTConnection(), {
+        wrapper: wrapper(),
+      });
+      expect(result.current.conn).toBeNull();
+      expect(result.current.isReady).toBe(false);
+    });
+
+    it("returns no connection for a stored third-party provider", () => {
+      localOnlyState.value = true;
+      config.current_stt_provider = "deepgram";
+      config.current_stt_model = "nova-3-general";
+      const { result } = renderHook(() => useSTTConnection(), {
+        wrapper: wrapper(),
+      });
+      expect(result.current.conn).toBeNull();
+    });
+
+    it("keeps a local provider whose server is on loopback", async () => {
+      localOnlyState.value = true;
+      config.current_stt_provider = "soniqo";
+      config.current_stt_model = "soniqo-parakeet-streaming";
+      isModelDownloadedMock.mockResolvedValue({ status: "ok", data: true });
+      getServerForModelMock.mockResolvedValue({
+        status: "ok",
+        data: { status: "ready", url: "http://127.0.0.1:5000" },
+      });
+      const { result } = renderHook(() => useSTTConnection(), {
+        wrapper: wrapper(),
+      });
+      await waitFor(() =>
+        expect(result.current.conn).toMatchObject({
+          provider: "soniqo",
+          baseUrl: "http://127.0.0.1:5000",
+        }),
+      );
+    });
+
+    it("drops a local provider whose server URL is not loopback", async () => {
+      localOnlyState.value = true;
+      config.current_stt_provider = "soniqo";
+      config.current_stt_model = "soniqo-parakeet-streaming";
+      isModelDownloadedMock.mockResolvedValue({ status: "ok", data: true });
+      getServerForModelMock.mockResolvedValue({
+        status: "ok",
+        data: { status: "ready", url: "https://example.com" },
+      });
+      const { result } = renderHook(() => useSTTConnection(), {
+        wrapper: wrapper(),
+      });
+      await waitFor(() => expect(getServerForModelMock).toHaveBeenCalled());
+      expect(result.current.conn).toBeNull();
+    });
   });
 });

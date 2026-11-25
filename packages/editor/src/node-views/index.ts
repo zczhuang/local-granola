@@ -26,6 +26,8 @@ export { mentionNodeSpec, MentionNodeView } from "./mention-view";
 export { sessionNodeSpec } from "./session-spec";
 export { TaskCheckbox } from "./task-checkbox";
 export {
+  aiLineDomAttrs,
+  parseAiLineAttrs,
   taskItemNodeSpec,
   taskListNodeSpec,
   TaskItemView,

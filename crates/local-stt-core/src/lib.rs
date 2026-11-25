@@ -3,6 +3,7 @@ pub use anlg_local_model::{AmModel, AppleSpeechModel, LocalModel, SoniqoModel, W
 pub static SUPPORTED_MODELS: &[LocalModel] = &[
     LocalModel::Soniqo(SoniqoModel::ParakeetStreaming),
     LocalModel::Soniqo(SoniqoModel::ParakeetBatch),
+    LocalModel::Soniqo(SoniqoModel::ParakeetV3Live),
     LocalModel::AppleSpeech(AppleSpeechModel::Default),
     LocalModel::Am(AmModel::ParakeetV2),
     LocalModel::Am(AmModel::ParakeetV3),
@@ -36,7 +37,9 @@ const GIB: u64 = 1024 * 1024 * 1024;
 const fn recommended_memory_bytes(model: &LocalModel) -> u64 {
     match model {
         LocalModel::Soniqo(SoniqoModel::ParakeetStreaming) => 8 * GIB,
-        LocalModel::Soniqo(SoniqoModel::ParakeetBatch | SoniqoModel::Omnilingual) => 16 * GIB,
+        LocalModel::Soniqo(
+            SoniqoModel::ParakeetBatch | SoniqoModel::ParakeetV3Live | SoniqoModel::Omnilingual,
+        ) => 16 * GIB,
         LocalModel::Soniqo(SoniqoModel::Qwen3Small) => 16 * GIB,
         LocalModel::Soniqo(SoniqoModel::Qwen3Large) => 32 * GIB,
         LocalModel::AppleSpeech(_) => 8 * GIB,

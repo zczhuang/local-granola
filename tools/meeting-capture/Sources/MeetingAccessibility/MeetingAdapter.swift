@@ -141,6 +141,38 @@ public enum MeetingAXAdapter {
     return calls.count == 1 ? calls[0] : nil
   }
 
+  // LOCAL-GRANOLA(mac-untested): the speaking markers below are assumed from Zoom's and Teams'
+  // accessibility labels, not read from a live call. A row that says "Talking"/"Speaking" (or
+  // their negation) as one of its comma-separated parts carries the app's own speaking state.
+  // Nothing here guesses from mute state: unmuted is never speaking.
+  static func speakingState(of row: MeetingAXNode, in nodes: [MeetingAXNode]) -> Bool? {
+    let parts = ([row] + nodes).flatMap(\.labels).flatMap { label in
+      label.components(separatedBy: ",").map {
+        $0.trimmingCharacters(in: .whitespaces).lowercased()
+      }
+    }
+    if parts.contains("not speaking") || parts.contains("not talking") {
+      return false
+    }
+    if parts.contains("speaking") || parts.contains("talking") { return true }
+    return nil
+  }
+
+  /// The speaking signal of one platform read: the people whose rows say they speak, and whether
+  /// the app shows speaking state at all. With no row showing any state the signal is
+  /// "unavailable" (absent), never "nobody is speaking".
+  static func speakerSignal(
+    platform: String, states: [(participant: MeetingParticipantObservation, speaking: Bool?)]
+  ) -> (speakers: [SpeakerCue], status: String) {
+    guard states.contains(where: { $0.speaking != nil }) else { return ([], "unavailable") }
+    let cues = states.filter { $0.speaking == true && $0.participant.isLocal != true }.map {
+      SpeakerCue(
+        platform: platform, participantID: $0.participant.id,
+        displayName: $0.participant.displayName)
+    }
+    return (cues, "available")
+  }
+
   public static func project(bundleID: String, snapshot: MeetingAXSnapshot) -> MeetingAXResult {
     guard snapshot.complete else { return .unknown("incomplete_snapshot") }
     let nodes = snapshot.nodes
@@ -177,7 +209,21 @@ public enum MeetingAXAdapter {
         $0.role == "AXOutline" && $0.labels.contains("Participants list")
       }
       var roster: [MeetingParticipantObservation] = []
+      var states: [(participant: MeetingParticipantObservation, speaking: Bool?)] = []
+      var zoomCount: Int?
       if lists.count == 1 {
+        // LOCAL-GRANOLA(mac-untested): the list header reads "Participants (N)".
+        let headers = content.filter {
+          $0.role == "AXStaticText"
+            && $0.labels.contains {
+              $0.range(of: #"^Participants \(\d{1,4}\)$"#, options: .regularExpression) != nil
+            }
+        }
+        if headers.count == 1, let label = headers[0].labels.first,
+          let match = label.firstMatch(of: #/\((\d{1,4})\)/#)
+        {
+          zoomCount = Int(match.1)
+        }
         for row in descendants(lists[0]).filter({ $0.role == "AXRow" }) {
           let names = descendants(row).filter { $0.role == "AXStaticText" }
           guard names.count == 1, let nameNode = names.first else { continue }
@@ -190,13 +236,18 @@ public enum MeetingAXAdapter {
             of: #" \((Host, me|me|Host|Guest)\)$"#, with: "", options: .regularExpression)
           guard !name.isEmpty else { continue }
           // IDs refer to AX element occurrences. Equal display names remain distinct.
-          roster.append(.init(id: "\(window.id)/\(nameNode.id)", displayName: name, isLocal: local))
+          let participant = MeetingParticipantObservation(
+            id: "\(window.id)/\(nameNode.id)", displayName: name, isLocal: local)
+          roster.append(participant)
+          states.append((participant, speakingState(of: row, in: descendants(row))))
         }
       }
+      let signal = speakerSignal(platform: "zoom", states: states)
       return .meeting(
         .init(
-          platform: "zoom", scopeID: window.id, participants: roster, speakers: [],
-          speakerStatus: "unavailable", rosterVisible: lists.count == 1))
+          platform: "zoom", scopeID: window.id, participants: roster, speakers: signal.speakers,
+          speakerStatus: signal.status, rosterVisible: lists.count == 1,
+          participantCount: zoomCount))
     }
     if chromiumBrowsers.contains(bundleID) {
       let calls = nodes.filter { area in
@@ -268,7 +319,20 @@ public enum MeetingAXAdapter {
         $0.role == "AXOutline" && $0.labels.contains("Attendees")
       }
       var roster: [MeetingParticipantObservation] = []
+      var states: [(participant: MeetingParticipantObservation, speaking: Bool?)] = []
+      var teamsCount: Int?
       if lists.count == 1 {
+        // LOCAL-GRANOLA(mac-untested): the "In this meeting" header row says "..., N total". A
+        // lobby has its own header, so only this group's count is taken, and only when unique.
+        let headers = descendants(lists[0]).filter {
+          $0.role == "AXRow"
+            && $0.labels.contains { $0.hasPrefix("In this meeting, ") && $0.hasSuffix(" total") }
+        }
+        if headers.count == 1, let label = headers[0].labels.first,
+          let match = label.firstMatch(of: #/, (\d{1,4}) total$/#)
+        {
+          teamsCount = Int(match.1)
+        }
         for row in descendants(lists[0]).filter({ $0.role == "AXRow" }) {
           let names = descendants(row).filter { node in
             node.role == "AXStaticText"
@@ -281,14 +345,23 @@ public enum MeetingAXAdapter {
           let labels = Set(
             names[0].labels.filter { name in row.labels.contains { $0.hasPrefix(name + ", ") } })
           guard labels.count == 1, let name = labels.first else { continue }
-          // Organizer/muted status does not establish which participant is this Mac's user.
-          roster.append(.init(id: "\(area.id)/\(names[0].id)", displayName: name, isLocal: nil))
+          // Organizer/muted status does not establish which participant is this Mac's user. Only
+          // an explicit "(You)" does (LOCAL-GRANOLA(mac-untested): label assumed, not seen live).
+          let isYou = name.hasSuffix(" (You)")
+          let shown = isYou ? String(name.dropLast(" (You)".count)) : name
+          guard !shown.isEmpty else { continue }
+          let participant = MeetingParticipantObservation(
+            id: "\(area.id)/\(names[0].id)", displayName: shown, isLocal: isYou ? true : nil)
+          roster.append(participant)
+          states.append((participant, speakingState(of: row, in: descendants(row))))
         }
       }
+      let signal = speakerSignal(platform: "teams", states: states)
       return .meeting(
         .init(
-          platform: "teams", scopeID: area.id, participants: roster, speakers: [],
-          speakerStatus: "unavailable", rosterVisible: lists.count == 1))
+          platform: "teams", scopeID: area.id, participants: roster, speakers: signal.speakers,
+          speakerStatus: signal.status, rosterVisible: lists.count == 1,
+          participantCount: teamsCount))
     }
     if bundleID == webexBundleID {
       // Webex's pre-join screen uses the same window; only a call shows End (or Leave) meeting.

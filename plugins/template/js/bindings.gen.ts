@@ -46,6 +46,22 @@ async saveGeneratedSummary(request: SaveGeneratedSummaryRequest) : Promise<Resul
     else return { status: "error", error: e  as any };
 }
 },
+async enhanceLocal(request: EnhanceLocalRequest) : Promise<Result<EnhanceLocalResponse, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:template|enhance_local", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async enhanceLocalIsStale(request: EnhanceLocalStaleRequest) : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:template|enhance_local_is_stale", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async saveGeneratedTitle(request: SaveGeneratedTitleRequest) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("plugin:template|save_generated_title", { request }) };
@@ -110,6 +126,29 @@ export type DailySummarySystem = { language: string | null }
 export type DailySummaryUser = { date: string; timezone: string | null; stats: DailySummaryStats; topApps: DailySummaryAppStat[]; analyses: DailySummaryAnalysis[]; totalAnalysisCount: number; existingSummary: string | null }
 export type DominantLanguageRequest = { texts: string[]; candidates: string[] }
 export type EditableTemplate = "enhanceFormat" | "enhanceUser" | "titleUser"
+/**
+ * LOCAL-ONLY: enhance the typed notes of a session with a local Ollama model
+ * and save the result into the enhanced note document.
+ */
+export type EnhanceLocalRequest = { session_id: string; 
+/**
+ * The enhanced note document (kind `summary`) to write into.
+ */
+note_id: string; 
+/**
+ * Discard manual edits and deletions of AI lines.
+ */
+regenerate: boolean; owner_user_id: string | null; model: string | null; base_url: string | null; num_ctx: number | null; 
+/**
+ * `"traditional"` (default) or `"simplified"`.
+ */
+chinese_script: string | null; pending_auto_enhance: PendingAutoEnhanceGuard | null }
+export type EnhanceLocalResponse = { note_id: string; source_hash: string; 
+/**
+ * Markdown of the saved document (for title generation).
+ */
+text: string; ai_line_count: number; kept_edited: number; kept_user: number; deleted_honored: number; chunks: number }
+export type EnhanceLocalStaleRequest = { session_id: string; note_id: string }
 export type EnhanceSystem = { language: string | null; formatOverride: string }
 export type EnhanceTemplate = { title: string; description: string | null; sections: TemplateSection[] }
 export type EnhanceUser = { session: Session; participants: Participant[]; template: EnhanceTemplate | null; transcripts: Transcript[]; preMeetingMemo: string; postMeetingMemo: string }

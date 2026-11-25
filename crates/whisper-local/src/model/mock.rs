@@ -22,9 +22,18 @@ impl LoadedWhisper {
     }
 
     pub fn session(&self, languages: Vec<Language>) -> Result<Whisper, crate::Error> {
+        self.session_with_prompt(languages, String::new())
+    }
+
+    pub fn session_with_prompt(
+        &self,
+        languages: Vec<Language>,
+        vocabulary_prompt: String,
+    ) -> Result<Whisper, crate::Error> {
         Ok(Whisper {
             languages,
             dynamic_prompt: String::new(),
+            vocabulary_prompt,
         })
     }
 }
@@ -33,11 +42,16 @@ impl LoadedWhisper {
 pub struct WhisperBuilder {
     model_path: Option<String>,
     languages: Option<Vec<Language>>,
+    vocabulary_prompt: Option<String>,
 }
 
 pub struct Whisper {
+    #[allow(dead_code)]
     languages: Vec<Language>,
+    #[allow(dead_code)]
     dynamic_prompt: String,
+    #[allow(dead_code)]
+    vocabulary_prompt: String,
 }
 
 impl WhisperBuilder {
@@ -51,17 +65,31 @@ impl WhisperBuilder {
         self
     }
 
+    pub fn vocabulary_prompt(mut self, prompt: impl Into<String>) -> Self {
+        self.vocabulary_prompt = Some(prompt.into());
+        self
+    }
+
     pub fn build(self) -> Result<Whisper, crate::Error> {
         let _ = self.model_path;
-        LoadedWhisper::builder()
-            .build()?
-            .session(self.languages.unwrap_or_default())
+        LoadedWhisper::builder().build()?.session_with_prompt(
+            self.languages.unwrap_or_default(),
+            self.vocabulary_prompt.unwrap_or_default(),
+        )
     }
 }
 
 impl Whisper {
     pub fn builder() -> WhisperBuilder {
         WhisperBuilder::default()
+    }
+
+    pub fn detect_language_probs(
+        &mut self,
+        _audio: &[f32],
+        _candidates: &[Language],
+    ) -> Result<Vec<(String, f32)>, crate::Error> {
+        Ok(vec![])
     }
 
     pub fn transcribe(&mut self, _samples: &[f32]) -> Result<Vec<Segment>, crate::Error> {

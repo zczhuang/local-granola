@@ -147,6 +147,14 @@ async function transformArgs(
     dictionaryTerms: parseDictionaryTermsJson(
       settingsValues.personalization_dictionary_terms,
     ),
+    localEnhance: {
+      sessionId,
+      enhancedNoteId: args.enhancedNoteId,
+      regenerate: args.regenerate ?? false,
+      ...(args.pendingAutoEnhance
+        ? { pendingAutoEnhance: args.pendingAutoEnhance }
+        : {}),
+    },
   };
 }
 

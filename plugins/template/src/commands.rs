@@ -133,3 +133,34 @@ pub async fn get_template_source<R: tauri::Runtime>(
 ) -> Result<String, String> {
     Ok(anlg_template_app::template_source(template).to_string())
 }
+
+/// LOCAL-ONLY: enhance the typed notes of a session with a local Ollama model
+/// and save the result into the enhanced note document.
+#[tauri::command]
+#[specta::specta]
+pub async fn enhance_local<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    request: crate::enhance_local::EnhanceLocalRequest,
+) -> Result<crate::enhance_local::EnhanceLocalResponse, String> {
+    let runtime = app
+        .try_state::<tauri_plugin_db::ManagedState>()
+        .map(|state| state.inner().clone())
+        .ok_or_else(|| "database is not ready yet".to_string())?;
+    // The model call can take minutes: only the final save takes the write guard.
+    let computed = crate::enhance_local::compute_with_ollama(runtime.pool(), &request).await?;
+    let _guard = runtime.synced_write_guard().await;
+    crate::enhance_local::save_computed(runtime.pool(), &request, computed).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn enhance_local_is_stale<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    request: crate::enhance_local::EnhanceLocalStaleRequest,
+) -> Result<bool, String> {
+    let runtime = app
+        .try_state::<tauri_plugin_db::ManagedState>()
+        .map(|state| state.inner().clone())
+        .ok_or_else(|| "database is not ready yet".to_string())?;
+    crate::enhance_local::is_stale(runtime.pool(), &request).await
+}

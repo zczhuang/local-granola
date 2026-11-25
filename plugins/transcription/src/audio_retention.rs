@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use serde_json::Value;
+use anlg_audio_retention::{AudioRetentionPolicy, StoredRetentionSettings, resolve_policy};
 use sqlx::SqlitePool;
 use tauri::Manager;
 use tauri_plugin_fs_sync::FsSyncPluginExt;
@@ -11,115 +11,31 @@ use crate::{BatchSessionRegistry, ListenerPluginExt};
 
 const SWEEP_INTERVAL: Duration = Duration::from_secs(60);
 const VOICEPRINT_CLEANUP_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
-const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 
 const AUDIO_RETENTION_SETTING_ID: &str = "audio_retention";
 const SAVE_RECORDINGS_SETTING_ID: &str = "save_recordings";
 const LEGACY_SETTINGS_ID: &str = "legacy_settings_document";
 const LEGACY_MAIN_VALUES_ID: &str = "legacy_main_values_document";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AudioRetentionPolicy {
-    None,
-    OneDay,
-    ThreeDays,
-    OneWeek,
-    OneMonth,
-    Forever,
-}
-
-impl AudioRetentionPolicy {
-    fn from_value(value: &Value) -> Option<Self> {
-        match value {
-            Value::Bool(false) => Some(Self::None),
-            Value::Bool(true) => Some(Self::Forever),
-            Value::String(value) => match value.as_str() {
-                "none" => Some(Self::None),
-                "oneDay" => Some(Self::OneDay),
-                "threeDays" => Some(Self::ThreeDays),
-                "oneWeek" => Some(Self::OneWeek),
-                "oneMonth" => Some(Self::OneMonth),
-                "forever" => Some(Self::Forever),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-
-    fn duration_ms(self) -> Option<i64> {
-        match self {
-            Self::None => Some(0),
-            Self::OneDay => Some(DAY_MS),
-            Self::ThreeDays => Some(3 * DAY_MS),
-            Self::OneWeek => Some(7 * DAY_MS),
-            Self::OneMonth => Some(30 * DAY_MS),
-            Self::Forever => None,
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-struct StoredRetentionSettings {
-    audio_retention: Option<String>,
-    save_recordings: Option<String>,
-    legacy_settings: Option<String>,
-    legacy_main_values: Option<String>,
-}
-
-/// Mirrors the desktop settings resolution: direct row, then legacy documents,
-/// then `save_recordings = false`, then the `forever` default.
-fn resolve_policy(stored: &StoredRetentionSettings) -> AudioRetentionPolicy {
-    let parse = |json: &Option<String>| {
-        json.as_deref()
-            .and_then(|json| serde_json::from_str::<Value>(json).ok())
-    };
-
-    if let Some(policy) = parse(&stored.audio_retention)
-        .as_ref()
-        .and_then(AudioRetentionPolicy::from_value)
-    {
-        return policy;
-    }
-
-    let legacy_settings = parse(&stored.legacy_settings).unwrap_or(Value::Null);
-    let legacy_main_values = parse(&stored.legacy_main_values).unwrap_or(Value::Null);
-    let legacy = [
-        legacy_settings.pointer("/general/audio_retention"),
-        legacy_settings.pointer("/general/saveAudioAfterMeeting"),
-        legacy_settings.pointer("/general/save_recordings"),
-        legacy_main_values.get("audio_retention"),
-        legacy_main_values.get("save_recordings"),
-    ];
-    if let Some(policy) = legacy
-        .into_iter()
-        .flatten()
-        .find_map(AudioRetentionPolicy::from_value)
-    {
-        return policy;
-    }
-
-    if parse(&stored.save_recordings) == Some(Value::Bool(false)) {
-        return AudioRetentionPolicy::None;
-    }
+/// Used when no retention setting exists: delete right after processing in the
+/// local-only build, keep forever otherwise.
+const DEFAULT_POLICY: AudioRetentionPolicy = if anlg_local_only::LOCAL_ONLY {
+    AudioRetentionPolicy::None
+} else {
     AudioRetentionPolicy::Forever
-}
+};
 
 async fn load_policy(pool: &SqlitePool) -> Result<AudioRetentionPolicy, sqlx::Error> {
     let get = |id| anlg_db_app::get_app_setting_json(pool, id);
-    Ok(resolve_policy(&StoredRetentionSettings {
-        audio_retention: get(AUDIO_RETENTION_SETTING_ID).await?,
-        save_recordings: get(SAVE_RECORDINGS_SETTING_ID).await?,
-        legacy_settings: get(LEGACY_SETTINGS_ID).await?,
-        legacy_main_values: get(LEGACY_MAIN_VALUES_ID).await?,
-    }))
-}
-
-fn is_expired(created_at_ms: Option<i64>, policy: AudioRetentionPolicy, now_ms: i64) -> bool {
-    match (policy, policy.duration_ms(), created_at_ms) {
-        (AudioRetentionPolicy::None, _, _) => true,
-        (_, Some(duration), Some(created_at)) => now_ms >= created_at.saturating_add(duration),
-        _ => false,
-    }
+    Ok(resolve_policy(
+        &StoredRetentionSettings {
+            audio_retention: get(AUDIO_RETENTION_SETTING_ID).await?,
+            save_recordings: get(SAVE_RECORDINGS_SETTING_ID).await?,
+            legacy_settings: get(LEGACY_SETTINGS_ID).await?,
+            legacy_main_values: get(LEGACY_MAIN_VALUES_ID).await?,
+        },
+        DEFAULT_POLICY,
+    ))
 }
 
 fn retention_expired(
@@ -127,10 +43,13 @@ fn retention_expired(
     policy: AudioRetentionPolicy,
     now_ms: i64,
 ) -> bool {
-    if policy == AudioRetentionPolicy::None && !candidate.has_words {
-        return false;
-    }
-    is_expired(candidate.created_at_ms, policy, now_ms)
+    anlg_audio_retention::retention_expired(
+        candidate.created_at_ms,
+        policy,
+        now_ms,
+        candidate.has_words,
+        candidate.transcript_complete,
+    )
 }
 
 async fn session_audio_is_expired(pool: &SqlitePool, session_id: &str) -> Result<bool, String> {
@@ -161,6 +80,39 @@ fn db_pool<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<SqlitePool> {
         .map(|state| state.pool().clone())
 }
 
+// BTreeMap rather than HashMap: `BTreeMap::new` is const, a static initializer must be.
+static AUDIO_HOLDS: std::sync::Mutex<std::collections::BTreeMap<String, u32>> =
+    std::sync::Mutex::new(std::collections::BTreeMap::new());
+
+/// Keeps a session's audio on disk (both retention sweeps and processed-audio
+/// deletion skip it) until a matching `release_session_audio_hold`. Counted, so
+/// overlapping holders cannot release each other's hold. Used by the
+/// post-meeting re-pass, which must read the audio after live processing ends.
+pub fn hold_session_audio(session_id: &str) {
+    if let Ok(mut holds) = AUDIO_HOLDS.lock() {
+        *holds.entry(session_id.to_string()).or_insert(0) += 1;
+    }
+}
+
+pub fn release_session_audio_hold(session_id: &str) {
+    if let Ok(mut holds) = AUDIO_HOLDS.lock()
+        && let Some(count) = holds.get_mut(session_id)
+    {
+        if *count <= 1 {
+            holds.remove(session_id);
+        } else {
+            *count -= 1;
+        }
+    }
+}
+
+/// Conservative: a poisoned lock counts as held.
+fn session_audio_is_held(session_id: &str) -> bool {
+    AUDIO_HOLDS
+        .lock()
+        .map_or(true, |holds| holds.contains_key(session_id))
+}
+
 fn batch_session_belongs_to(batch_session_id: &str, session_id: &str) -> bool {
     batch_session_id
         .strip_prefix(session_id)
@@ -172,6 +124,9 @@ async fn session_audio_is_idle<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     session_id: &str,
 ) -> bool {
+    if session_audio_is_held(session_id) {
+        return false;
+    }
     let Ok(snapshot) = app.listener().get_capture_snapshot().await else {
         return false;
     };
@@ -304,6 +259,23 @@ pub(crate) fn spawn<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
     });
 }
 
+/// Frontend entry point for `hold_session_audio`: the post-meeting re-pass pins a session's audio
+/// against the Rust retention sweep, which the TS-side hold cannot reach. Counted like the Rust API.
+#[tauri::command]
+#[specta::specta]
+pub fn acquire_session_audio_hold(session_id: String) -> Result<(), String> {
+    hold_session_audio(&session_id);
+    Ok(())
+}
+
+/// Frontend entry point for `release_session_audio_hold`.
+#[tauri::command]
+#[specta::specta]
+pub fn drop_session_audio_hold(session_id: String) -> Result<(), String> {
+    release_session_audio_hold(&session_id);
+    Ok(())
+}
+
 /// Deletes local audio right after processing when the retention policy is `none`.
 #[tauri::command]
 #[specta::specta]
@@ -322,78 +294,50 @@ pub async fn delete_processed_session_audio<R: tauri::Runtime>(
 mod tests {
     use super::*;
 
-    fn stored(
-        audio_retention: Option<&str>,
-        save_recordings: Option<&str>,
-        legacy_settings: Option<&str>,
-        legacy_main_values: Option<&str>,
-    ) -> StoredRetentionSettings {
-        StoredRetentionSettings {
-            audio_retention: audio_retention.map(str::to_string),
-            save_recordings: save_recordings.map(str::to_string),
-            legacy_settings: legacy_settings.map(str::to_string),
-            legacy_main_values: legacy_main_values.map(str::to_string),
-        }
-    }
-
-    #[test]
-    fn retention_policy_never_deletes_audio_the_user_chose_to_keep() {
-        use AudioRetentionPolicy as P;
-        let cases = [
-            (stored(None, None, None, None), P::Forever),
-            (stored(Some(r#""unknown""#), None, None, None), P::Forever),
-            (stored(Some("not json"), Some("false"), None, None), P::None),
-            (
-                stored(Some(r#""oneWeek""#), Some("false"), None, None),
-                P::OneWeek,
-            ),
-            (stored(Some("true"), Some("false"), None, None), P::Forever),
-            (stored(Some("false"), None, None, None), P::None),
-            (
-                stored(
-                    None,
-                    Some("false"),
-                    Some(r#"{"general":{"saveAudioAfterMeeting":"threeDays"}}"#),
-                    None,
-                ),
-                P::ThreeDays,
-            ),
-            (
-                stored(None, None, None, Some(r#"{"save_recordings":false}"#)),
-                P::None,
-            ),
-        ];
-        for (settings, expected) in cases {
-            assert_eq!(resolve_policy(&settings), expected, "{settings:?}");
-        }
-    }
-
-    #[test]
-    fn retention_window_starts_at_session_creation() {
-        let created = Some(1_000);
-        assert!(!is_expired(
-            created,
-            AudioRetentionPolicy::OneDay,
-            1_000 + DAY_MS - 1
-        ));
-        assert!(is_expired(
-            created,
-            AudioRetentionPolicy::OneDay,
-            1_000 + DAY_MS
-        ));
-        assert!(!is_expired(None, AudioRetentionPolicy::OneMonth, i64::MAX));
-        assert!(!is_expired(
-            created,
-            AudioRetentionPolicy::Forever,
-            i64::MAX
-        ));
-        assert!(is_expired(None, AudioRetentionPolicy::None, 0));
-    }
-
     #[test]
     fn batch_sessions_match_their_capture_session_only() {
         assert!(batch_session_belongs_to("s1", "s1"));
         assert!(batch_session_belongs_to("s1:recovery", "s1"));
         assert!(!batch_session_belongs_to("s10", "s1"));
+    }
+
+    #[test]
+    fn audio_holds_are_counted() {
+        hold_session_audio("hold-a");
+        hold_session_audio("hold-a");
+        release_session_audio_hold("hold-a");
+        assert!(session_audio_is_held("hold-a"));
+        release_session_audio_hold("hold-a");
+        assert!(!session_audio_is_held("hold-a"));
+        release_session_audio_hold("hold-a");
+        assert!(!session_audio_is_held("hold-a"));
+    }
+
+    fn candidate(
+        has_words: bool,
+        transcript_complete: bool,
+    ) -> anlg_db_app::SessionAudioRetentionCandidate {
+        anlg_db_app::SessionAudioRetentionCandidate {
+            session_id: "s".into(),
+            created_at_ms: Some(0),
+            has_words,
+            transcript_complete,
+        }
+    }
+
+    #[test]
+    fn none_policy_deletes_completed_empty_transcripts_but_not_unfinished_ones() {
+        let p = AudioRetentionPolicy::None;
+        assert!(!retention_expired(&candidate(false, false), p, 1));
+        assert!(retention_expired(&candidate(false, true), p, 1));
+        assert!(retention_expired(&candidate(true, false), p, 1));
+    }
+
+    #[test]
+    fn local_only_build_defaults_to_deleting_after_processing() {
+        assert_eq!(
+            DEFAULT_POLICY == AudioRetentionPolicy::None,
+            anlg_local_only::LOCAL_ONLY
+        );
     }
 }

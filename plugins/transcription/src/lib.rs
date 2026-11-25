@@ -18,6 +18,7 @@ mod listener2;
 mod live_journal;
 mod meeting;
 mod session_transcript;
+mod stt_routing;
 mod stopped_captures;
 mod voiceprint;
 
@@ -31,7 +32,10 @@ pub use anlg_transcription_core::listener2::{
     parse_subtitle_from_path, suggest_providers_for_languages_batch,
 };
 pub use api::*;
-pub use audio_retention::{SessionAudioRetentionEvent, SessionAudioRetentionPhase};
+pub use audio_retention::{
+    SessionAudioRetentionEvent, SessionAudioRetentionPhase, hold_session_audio,
+    release_session_audio_hold,
+};
 pub use capture_gaps::CaptureGapRegistry;
 pub use capture_markers::{CaptureLifecycleMarker, CapturePhase, InheritedCapture, SummaryMode};
 pub use error::{Error, Result};
@@ -203,6 +207,9 @@ fn make_specta_builder<R: tauri::Runtime>() -> tauri_specta::Builder<R> {
             voiceprint::extract_voiceprint_candidates::<tauri::Wry>,
             voiceprint::promote_voiceprint_candidates::<tauri::Wry>,
             audio_retention::delete_processed_session_audio::<tauri::Wry>,
+            audio_retention::acquire_session_audio_hold,
+            audio_retention::drop_session_audio_hold,
+            stt_routing::decide_stt_route,
             meeting::get_meeting_capture_capability::<tauri::Wry>,
             meeting::set_meeting_account::<tauri::Wry>,
         ])

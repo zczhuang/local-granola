@@ -52,6 +52,7 @@ export function useVirtualSegments({
   searchEnabled,
   currentMs,
   offsetMs,
+  jump,
 }: {
   segments: Segment[];
   segmentKeys: string[];
@@ -60,7 +61,14 @@ export function useVirtualSegments({
   searchEnabled: boolean;
   currentMs: number;
   offsetMs: number;
+  /** LOCAL-GRANOLA: scroll to and briefly highlight these segments. */
+  jump?: { nonce: number; indexes: number[] } | null;
 }) {
+  const [highlightedIndexes, setHighlightedIndexes] = useState<
+    ReadonlySet<number>
+  >(() => new Set());
+  const handledJumpRef = useRef(0);
+  const jumpTimersRef = useRef<number[]>([]);
   const [listElement, setListElement] = useState<HTMLDivElement | null>(null);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [measuredHeights, setMeasuredHeights] = useState<
@@ -79,6 +87,8 @@ export function useVirtualSegments({
 
   useMountEffect(() => {
     return () => {
+      jumpTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      jumpTimersRef.current = [];
       if (measurementFrameRef.current !== null) {
         cancelAnimationFrame(measurementFrameRef.current);
         measurementFrameRef.current = null;
@@ -149,6 +159,9 @@ export function useVirtualSegments({
     if (activeMatchIndex !== null) indexes.add(activeMatchIndex);
     if (playbackIndex !== null) indexes.add(playbackIndex);
     if (focusedIndex !== null) indexes.add(focusedIndex);
+    for (const index of highlightedIndexes) {
+      if (index < segments.length) indexes.add(index);
+    }
     for (const index of selectedIndexes) indexes.add(index);
 
     return Array.from(indexes)
@@ -161,6 +174,7 @@ export function useVirtualSegments({
   }, [
     activeMatchIndex,
     focusedIndex,
+    highlightedIndexes,
     offsets,
     playbackIndex,
     scrollElement,
@@ -233,6 +247,28 @@ export function useVirtualSegments({
   );
   scrollToIndexRef.current = scrollToIndex;
 
+  useLayoutEffect(() => {
+    if (
+      !jump ||
+      jump.indexes.length === 0 ||
+      jump.nonce === handledJumpRef.current ||
+      !listElement ||
+      !scrollElement
+    ) {
+      return;
+    }
+    handledJumpRef.current = jump.nonce;
+    const target = jump.indexes[0]!;
+    jumpTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    setHighlightedIndexes(new Set(jump.indexes));
+    scrollToIndex(target, "smooth");
+    jumpTimersRef.current = [
+      // Row heights are estimates until measured; correct once they settle.
+      window.setTimeout(() => scrollToIndexRef.current(target, "smooth"), 300),
+      window.setTimeout(() => setHighlightedIndexes(new Set()), 3_500),
+    ];
+  }, [jump, listElement, scrollElement, scrollToIndex]);
+
   const previousActiveMatchRef = useRef<string | null>(null);
   useLayoutEffect(() => {
     if (
@@ -303,6 +339,7 @@ export function useVirtualSegments({
   return {
     handleRowBlur,
     handleRowFocus,
+    highlightedIndexes,
     listRef,
     measureRow,
     totalHeight,

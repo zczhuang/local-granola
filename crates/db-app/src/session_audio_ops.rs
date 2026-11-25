@@ -9,6 +9,9 @@ pub struct SessionAudioRetentionCandidate {
     pub session_id: String,
     pub created_at_ms: Option<i64>,
     pub has_words: bool,
+    /// The primary audio attachment's transcription finished (`transcript_status` is
+    /// `complete`), even if it produced no words (silence, failed recognition).
+    pub transcript_complete: bool,
 }
 
 pub async fn get_app_setting_json(
@@ -35,7 +38,17 @@ macro_rules! session_audio_retention_candidates_sql {
                AND transcript.deleted_at IS NULL
                AND json_valid(transcript.words_json)
                AND json_array_length(transcript.words_json) > 0
-           ) AS has_words
+           ) AS has_words,
+           EXISTS(
+             SELECT 1
+             FROM session_attachments AS done
+             WHERE done.session_id = session.id
+               AND done.source_type = 'session_audio'
+               AND done.source_id = 'primary'
+               AND done.deleted_at IS NULL
+               AND json_valid(done.metadata_json)
+               AND json_extract(done.metadata_json, '$.transcript_status') = 'complete'
+           ) AS transcript_complete
          FROM sessions AS session
          WHERE session.deleted_at IS NULL
            AND NOT EXISTS(
@@ -129,20 +142,33 @@ pub async fn session_audio_is_logically_deleted(
     .await
 }
 
-/// The session has transcript words and no primary audio transcription in progress.
+/// The session's transcript is finished (it has words, or the primary audio's transcription is
+/// marked complete even with zero words) and no primary audio transcription is in progress.
 pub async fn session_audio_is_processed(
     pool: &SqlitePool,
     session_id: &str,
 ) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar(
         "SELECT
-           EXISTS(
-             SELECT 1
-             FROM transcripts
-             WHERE session_id = ?
-               AND deleted_at IS NULL
-               AND json_valid(words_json)
-               AND json_array_length(words_json) > 0
+           (
+             EXISTS(
+               SELECT 1
+               FROM transcripts
+               WHERE session_id = ?
+                 AND deleted_at IS NULL
+                 AND json_valid(words_json)
+                 AND json_array_length(words_json) > 0
+             )
+             OR EXISTS(
+               SELECT 1
+               FROM session_attachments
+               WHERE session_id = ?
+                 AND source_type = 'session_audio'
+                 AND source_id = 'primary'
+                 AND deleted_at IS NULL
+                 AND json_valid(metadata_json)
+                 AND json_extract(metadata_json, '$.transcript_status') = 'complete'
+             )
            )
            AND NOT EXISTS(
              SELECT 1
@@ -155,6 +181,7 @@ pub async fn session_audio_is_processed(
                AND json_extract(metadata_json, '$.transcript_status') = 'processing'
            )",
     )
+    .bind(session_id)
     .bind(session_id)
     .bind(session_id)
     .fetch_one(pool)

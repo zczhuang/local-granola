@@ -9,6 +9,7 @@ import {
 import { useMountEffect } from "@anlg/ui/hooks/use-mount-effect";
 
 import { isAppStoreBuild } from "~/shared/app-store";
+import { LOCAL_ONLY } from "~/shared/local-only";
 import { flushLocalStorageMirror } from "~/shared/local-storage-mirror";
 import { useDevtoolsOtaPreview } from "~/store/zustand/devtools-ota-preview";
 
@@ -95,7 +96,7 @@ const DISABLED_UPDATE_CONTROL: DesktopUpdateControl = {
 };
 
 export function useDesktopUpdateControl(): DesktopUpdateControl {
-  const updaterEnabled = !isAppStoreBuild();
+  const updaterEnabled = !isAppStoreBuild() && !LOCAL_ONLY;
   const queryClient = useQueryClient();
   const [eventState, setEventState] = useState<UpdateEvent | null>(null);
   const [acknowledgedVersion, setAcknowledgedVersion] = useState<string | null>(

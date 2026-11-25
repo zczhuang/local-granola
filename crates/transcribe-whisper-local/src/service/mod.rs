@@ -61,13 +61,23 @@ pub(crate) fn build_model(
     loaded_model: &anlg_whisper_local::LoadedWhisper,
     params: &ListenParams,
 ) -> Result<anlg_whisper_local::Whisper, crate::Error> {
-    build_model_with_languages(
+    build_model_with_languages_and_prompt(
         loaded_model,
         params
             .languages
             .iter()
             .filter_map(|lang| lang.clone().try_into().ok())
             .collect(),
+        vocabulary_prompt(&params.keywords),
+    )
+}
+
+/// Whisper initial prompt built from `ListenParams.keywords` (the user's
+/// custom vocabulary). Empty when no keywords were sent.
+pub(crate) fn vocabulary_prompt(keywords: &[String]) -> String {
+    anlg_stt_routing::vocab::build_whisper_prompt(
+        keywords,
+        anlg_stt_routing::vocab::DEFAULT_PROMPT_MAX_CHARS,
     )
 }
 
@@ -80,11 +90,14 @@ pub(crate) fn load_model(
         .map_err(crate::Error::from)
 }
 
-pub(crate) fn build_model_with_languages(
+pub(crate) fn build_model_with_languages_and_prompt(
     loaded_model: &anlg_whisper_local::LoadedWhisper,
     languages: Vec<anlg_whisper::Language>,
+    vocabulary_prompt: String,
 ) -> Result<anlg_whisper_local::Whisper, crate::Error> {
-    loaded_model.session(languages).map_err(crate::Error::from)
+    loaded_model
+        .session_with_prompt(languages, vocabulary_prompt)
+        .map_err(crate::Error::from)
 }
 
 pub(crate) fn transcribe_chunk(
@@ -236,6 +249,17 @@ fn synthetic_segment_timings(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keywords_become_a_capped_deduped_whisper_prompt() {
+        let keywords = vec![
+            "Anarlog".to_string(),
+            "anarlog".to_string(),
+            "Cedarwind".to_string(),
+        ];
+        assert_eq!(vocabulary_prompt(&keywords), "Anarlog, Cedarwind.");
+        assert_eq!(vocabulary_prompt(&[]), "");
+    }
 
     #[test]
     fn parse_listen_params_reads_languages_keywords_and_defaults() {

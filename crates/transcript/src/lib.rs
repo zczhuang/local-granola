@@ -9,15 +9,17 @@ mod render;
 mod segments;
 mod speaker_context;
 mod synthetic_render;
+mod vocabulary;
 pub use meeting_speakers::{
     MeetingCueEvidence, MeetingEvidenceGap, MeetingEvidenceParticipant, MeetingEvidencePlatform,
     MeetingEvidenceTrack, MeetingRosterEvidence, MeetingSpeakerEvidence, upsert_meeting_evidence,
 };
 pub use speaker_context::{
     ProvisionalSpeakerLabel, SpeakerContext, SpeakerContextInterval, SpeakerResolutionReason,
-    segment_options_for_assignments,
+    attendees, segment_options_for_assignments,
 };
 pub use synthetic_render::synthetic_timing_from_metadata;
+pub use vocabulary::{VocabularyCorrection, correct_words, correct_words_with_report};
 mod types;
 mod words;
 

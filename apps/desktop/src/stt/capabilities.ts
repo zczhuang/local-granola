@@ -180,7 +180,11 @@ export function isConfiguredSttModel(
 }
 
 export function isRealtimeLocalModel(model?: string | null) {
-  return model === "soniqo-parakeet-streaming" || model === "apple-speech";
+  return (
+    model === "soniqo-parakeet-streaming" ||
+    model === "soniqo-parakeet-v3-live" ||
+    model === "apple-speech"
+  );
 }
 
 export function getSttModelTranscriptionMode(

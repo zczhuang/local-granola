@@ -22,7 +22,11 @@ vi.mock("~/store/zustand/listener/instance", () => ({
 
 import {
   deleteProcessedAudioForRetention,
+  isAudioHeld,
+  isSessionAudioIdle,
   normalizeAudioRetention,
+  registerAudioHold,
+  releaseAudioHold,
 } from "./audio-retention";
 
 describe("audio retention", () => {
@@ -67,5 +71,38 @@ describe("audio retention", () => {
     await expect(
       deleteProcessedAudioForRetention("none", "session-1"),
     ).resolves.toBe(false);
+  });
+
+  test("a held session is not idle and is not deleted until released", async () => {
+    registerAudioHold("session-held");
+    expect(isAudioHeld("session-held")).toBe(true);
+    expect(isSessionAudioIdle("session-held")).toBe(false);
+    await expect(
+      deleteProcessedAudioForRetention("none", "session-held"),
+    ).resolves.toBe(false);
+    expect(mocks.deleteProcessedSessionAudio).not.toHaveBeenCalled();
+
+    releaseAudioHold("session-held");
+    expect(isSessionAudioIdle("session-held")).toBe(true);
+    await expect(
+      deleteProcessedAudioForRetention("none", "session-held"),
+    ).resolves.toBe(true);
+  });
+
+  test("overlapping holds need matching releases", () => {
+    registerAudioHold("session-2");
+    registerAudioHold("session-2");
+    releaseAudioHold("session-2");
+    expect(isSessionAudioIdle("session-2")).toBe(false);
+    releaseAudioHold("session-2");
+    releaseAudioHold("session-2");
+    expect(isSessionAudioIdle("session-2")).toBe(true);
+  });
+
+  test("days retention is left to the expiry sweep", async () => {
+    await expect(
+      deleteProcessedAudioForRetention("days:3", "session-1"),
+    ).resolves.toBe(false);
+    expect(mocks.deleteProcessedSessionAudio).not.toHaveBeenCalled();
   });
 });

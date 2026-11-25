@@ -316,6 +316,8 @@ fn batch_response_aligns_words_to_diarized_speech() {
 #[test]
 fn live_response_keeps_source_channel() {
     let partial = LivePartial {
+        start_seconds: None,
+        duration_seconds: None,
         source: "system".to_string(),
         text: "hello".to_string(),
         is_final: true,
@@ -327,4 +329,27 @@ fn live_response_keeps_source_channel() {
     };
 
     assert_eq!(channel_index, vec![1, 2]);
+}
+
+#[test]
+fn parakeet_v3_live_is_a_windowed_mode_of_the_batch_model() {
+    let live = SoniqoModel::ParakeetV3Live;
+    assert_eq!(
+        "soniqo-parakeet-v3-live".parse::<SoniqoModel>().unwrap(),
+        live
+    );
+    assert!(live.supports_live());
+    assert!(live.is_windowed_live());
+    assert!(!SoniqoModel::ParakeetStreaming.is_windowed_live());
+    assert_eq!(live.bridge_model(), SoniqoModel::ParakeetBatch);
+    assert_eq!(live.batch_model(), SoniqoModel::ParakeetBatch);
+    assert_eq!(live.repo(), SoniqoModel::ParakeetBatch.repo());
+    assert!(SoniqoModel::selectable().contains(&live));
+    assert!(live.supports_language(&"de".parse().unwrap()));
+    assert!(!live.supports_language(&"zh".parse().unwrap()));
+    // The shared repo id still resolves to the batch model.
+    assert_eq!(
+        live.repo().parse::<SoniqoModel>().unwrap(),
+        SoniqoModel::ParakeetBatch
+    );
 }

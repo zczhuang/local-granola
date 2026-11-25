@@ -1,6 +1,7 @@
 use tauri::Wry;
 
 mod commands;
+mod enhance_local;
 mod ext;
 mod generated_summary;
 mod session_content;
@@ -20,6 +21,8 @@ fn make_specta_builder<R: tauri::Runtime>() -> tauri_specta::Builder<R> {
             commands::prepare_generated_summary,
             commands::compose_generated_summary,
             commands::save_generated_summary::<Wry>,
+            commands::enhance_local::<Wry>,
+            commands::enhance_local_is_stale::<Wry>,
             commands::save_generated_title::<Wry>,
             commands::apply_session_content_corrections::<Wry>,
             commands::render::<Wry>,

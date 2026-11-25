@@ -19,6 +19,8 @@ export const env = createEnv({
     VITE_POSTHOG_API_KEY: z.string().min(1).optional(),
     VITE_POSTHOG_HOST: z.string().min(1).default("https://us.i.posthog.com"),
     VITE_APP_VERSION: z.string().min(1).optional(),
+    // "false" restores hosted behavior; anything else keeps the local-only build.
+    VITE_LOCAL_ONLY: z.string().optional(),
   },
   runtimeEnv: import.meta.env,
   emptyStringAsUndefined: true,

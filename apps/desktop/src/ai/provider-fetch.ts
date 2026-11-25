@@ -1,7 +1,15 @@
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 
+import { assertLocalUrl } from "~/shared/local-only";
+
 export const providerFetch: typeof fetch = (input, init) => {
   const url = new URL(input instanceof Request ? input.url : input);
+  try {
+    assertLocalUrl(url);
+  } catch (error) {
+    // Reject like fetch does instead of throwing synchronously.
+    return Promise.reject(error);
+  }
   if (
     (url.protocol === "http:" || url.protocol === "https:") &&
     ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)

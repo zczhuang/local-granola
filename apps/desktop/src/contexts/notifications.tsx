@@ -42,6 +42,7 @@ const NotificationContext = createContext<NotificationState | null>(null);
 const MODEL_DISPLAY_NAMES: Partial<Record<LocalModel, string>> = {
   "apple-speech": "Apple Speech",
   "soniqo-parakeet-streaming": "Soniqo Parakeet Streaming",
+  "soniqo-parakeet-v3-live": "Soniqo Parakeet v3 Live",
   "soniqo-parakeet-batch": "Soniqo Parakeet Batch",
   "am-parakeet-v2": "Parakeet v2",
   "am-parakeet-v3": "Parakeet v3",

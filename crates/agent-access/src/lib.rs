@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
+mod enhanced;
 mod proposals;
+pub use enhanced::*;
 mod recording_import;
 pub use recording_import::*;
 mod transcript_render;

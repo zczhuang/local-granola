@@ -24,6 +24,7 @@ import {
   useSettingsReady,
 } from "~/settings/queries";
 import { resolveConfigValue, useConfigValues } from "~/shared/config";
+import { LOCAL_ONLY } from "~/shared/local-only";
 import {
   getTranscriptionLanguages,
   isDesktopLocalSttAvailable,
@@ -146,7 +147,10 @@ export function useDictationPlanner(sessionId: string) {
       const conn = stt.conn;
       const localOnly =
         stt.isLocalModel || (!!conn && isLoopback(conn.baseUrl));
-      if (localOnly && !conn) throw new Error(LOCAL_UNAVAILABLE);
+      // Under LOCAL_ONLY the STT connection hook withholds any non-local
+      // connection; never fall back to the stored provider without one.
+      if ((localOnly || LOCAL_ONLY) && !conn)
+        throw new Error(LOCAL_UNAVAILABLE);
       const policy: DictationPolicy = {
         provider: conn?.provider ?? values.current_stt_provider ?? "",
         model: conn?.model ?? values.current_stt_model ?? null,

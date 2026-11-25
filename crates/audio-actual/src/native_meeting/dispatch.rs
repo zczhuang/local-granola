@@ -399,8 +399,8 @@ impl Dispatcher {
         let participant_count = line
             .get("participantCount")
             .and_then(|count| count.parse::<u32>().ok());
-        // Complete only when the app's own count matches the rows it shows. Fixtures support this
-        // for Webex with its participant panel open; nothing else reports a count.
+        // Complete only when the app's own count matches the rows it shows. Webex with its
+        // participant panel open reports one; Zoom's and Teams' lists may (LOCAL-GRANOLA).
         let roster_complete = line.bool("rosterVisible") == Some(true)
             && participant_count.is_some_and(|count| count as usize == participants.len());
         Some(SpeakerObservation {
@@ -411,8 +411,12 @@ impl Dispatcher {
             participants,
             roster_complete,
             participant_count,
-            // Accessibility has no speaking signal: absent, never "nobody is speaking".
-            speaking: (line.get("speakerStatus") == Some("available")).then_some(speaking),
+            // Only Zoom and Teams show a speaking state in Accessibility (LOCAL-GRANOLA); for any
+            // other app, and whenever the helper saw none, it is absent, never "nobody is
+            // speaking".
+            speaking: (line.get("speakerStatus") == Some("available")
+                && matches!(platform, CallPlatform::Zoom | CallPlatform::MicrosoftTeams))
+            .then_some(speaking),
         })
     }
 
@@ -1006,6 +1010,66 @@ mod tests {
                 Some("AirPods".to_string())
             ]
         );
+    }
+
+    #[test]
+    fn zoom_and_teams_speaking_rows_become_cues_and_other_apps_stay_silent() {
+        let mut dispatcher = dispatcher();
+        for platform in ["zoom", "teams"] {
+            let out = dispatcher.handle(event(
+                "meeting-observation",
+                &[
+                    ("frame", "48000"),
+                    ("platform", platform),
+                    ("rosterVisible", "true"),
+                    ("participantCount", "2"),
+                    ("speakerStatus", "available"),
+                    ("participant.id", "a"),
+                    ("participant.name", "Alex"),
+                    ("participant.local", "true"),
+                    ("participant.id", "b"),
+                    ("participant.name", "Sam"),
+                    ("participant.local", "false"),
+                    ("speaker.id", "b"),
+                    ("speaker.name", "Sam"),
+                ],
+            ));
+            let [Output::Event(MeetingCaptureEvent::Observation(observation))] = &out[..] else {
+                panic!("expected an observation");
+            };
+            let cues = observation.speaking.as_ref().expect(platform);
+            assert_eq!(cues.len(), 1, "{platform}");
+            assert_eq!(cues[0].participant_id.as_deref(), Some("b"));
+            assert_eq!(cues[0].display_name.as_deref(), Some("Sam"));
+            assert!(observation.roster_complete, "{platform}");
+        }
+        // "available" with nobody lit is an explicit "nobody is speaking", not an absent signal.
+        let out = dispatcher.handle(event(
+            "meeting-observation",
+            &[
+                ("frame", "1"),
+                ("platform", "zoom"),
+                ("speakerStatus", "available"),
+            ],
+        ));
+        let [Output::Event(MeetingCaptureEvent::Observation(observation))] = &out[..] else {
+            panic!("expected an observation");
+        };
+        assert_eq!(observation.speaking, Some(vec![]));
+        // Webex never carries a speaking signal, even if a helper claims one.
+        let out = dispatcher.handle(event(
+            "meeting-observation",
+            &[
+                ("frame", "2"),
+                ("platform", "webex"),
+                ("speakerStatus", "available"),
+                ("speaker.id", "b"),
+            ],
+        ));
+        let [Output::Event(MeetingCaptureEvent::Observation(observation))] = &out[..] else {
+            panic!("expected an observation");
+        };
+        assert_eq!(observation.speaking, None);
     }
 
     #[test]

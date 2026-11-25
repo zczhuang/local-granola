@@ -46,6 +46,9 @@ Default permissions for the plugin
 - `allow-extract-voiceprint-candidates`
 - `allow-promote-voiceprint-candidates`
 - `allow-delete-processed-session-audio`
+- `allow-acquire-session-audio-hold`
+- `allow-drop-session-audio-hold`
+- `allow-decide-stt-route`
 - `allow-get-meeting-capture-capability`
 - `allow-set-meeting-account`
 - `allow-parse-subtitle`
@@ -175,6 +178,32 @@ Denies the acknowledge_stopped_capture command without any pre-configured scope.
 <tr>
 <td>
 
+`transcription:allow-acquire-session-audio-hold`
+
+</td>
+<td>
+
+Enables the acquire_session_audio_hold command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`transcription:deny-acquire-session-audio-hold`
+
+</td>
+<td>
+
+Denies the acquire_session_audio_hold command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `transcription:allow-clear-capture-audio-saved`
 
 </td>
@@ -227,6 +256,32 @@ Denies the clear_capture_lifecycle_marker command without any pre-configured sco
 <tr>
 <td>
 
+`transcription:allow-decide-stt-route`
+
+</td>
+<td>
+
+Enables the decide_stt_route command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`transcription:deny-decide-stt-route`
+
+</td>
+<td>
+
+Denies the decide_stt_route command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `transcription:allow-delete-processed-session-audio`
 
 </td>
@@ -272,6 +327,32 @@ Enables the delete_transcribed_capture_audio command without any pre-configured 
 <td>
 
 Denies the delete_transcribed_capture_audio command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`transcription:allow-drop-session-audio-hold`
+
+</td>
+<td>
+
+Enables the drop_session_audio_hold command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`transcription:deny-drop-session-audio-hold`
+
+</td>
+<td>
+
+Denies the drop_session_audio_hold command without any pre-configured scope.
 
 </td>
 </tr>

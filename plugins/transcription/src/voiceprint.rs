@@ -1,6 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+use anlg_transcript::attendees::{
+    AssignmentSource, Attendee, ClusterVote, ClusterWord, VoiceprintScore,
+    map_clusters_to_attendees, meeting_cluster_votes,
+};
 use anlg_voiceprint::{
     MIN_UNIQUE_MARGIN, MIN_UNIQUE_SCORE, SelectedSpan, SpanConfig, SpanWord, VoiceprintAssignment,
     VoiceprintSpeakerKey, collect_match_scores, complete_by_elimination,
@@ -993,17 +997,47 @@ async fn maybe_assign_speakers_from_voiceprints<R: tauri::Runtime>(
         })
         .collect();
     let scores = collect_match_scores(&samples, &exemplars);
-    let voiceprint_namings: Vec<SpeakerNaming> = pick_unique_voiceprint_assignments(
-        &scores
-            .iter()
-            .map(|(speaker, human_id, score)| (*speaker, human_id.as_str(), *score))
-            .collect::<Vec<_>>(),
-        MIN_UNIQUE_SCORE,
-        MIN_UNIQUE_MARGIN,
+    // Names the meeting app showed per cluster. Without any, naming is voiceprints alone, as before.
+    let votes = match meeting_cluster_votes_for_transcript(
+        pool,
+        session_id,
+        transcript_id,
+        &words_json,
+        &hints_json,
     )
-    .into_iter()
-    .map(SpeakerNaming::from_voiceprint)
-    .collect();
+    .await
+    {
+        Ok(votes) => votes,
+        Err(error) => {
+            tracing::warn!(%error, "meeting_cluster_votes_failed");
+            Vec::new()
+        }
+    };
+    let voiceprint_namings: Vec<SpeakerNaming> = if votes.is_empty() {
+        pick_unique_voiceprint_assignments(
+            &scores
+                .iter()
+                .map(|(speaker, human_id, score)| (*speaker, human_id.as_str(), *score))
+                .collect::<Vec<_>>(),
+            MIN_UNIQUE_SCORE,
+            MIN_UNIQUE_MARGIN,
+        )
+        .into_iter()
+        .map(SpeakerNaming::from_voiceprint)
+        .collect()
+    } else {
+        let attendees = attendees_from_participants(
+            participants.iter().map(|participant| {
+                (
+                    participant.human_id.as_str(),
+                    participant.display_name.as_str(),
+                    participant.email.as_str(),
+                )
+            }),
+            &remote_human_ids,
+        );
+        namings_from_attendee_mapping(&votes, &scores, &attendees)
+    };
 
     for attempt in 0..2 {
         // Elimination depends on which pairs the current hints leave open, so
@@ -1131,8 +1165,12 @@ async fn embeddings_from_stored_candidates<R: tauri::Runtime>(
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum NamingBasis {
-    Voiceprint { score: f32 },
+    Voiceprint {
+        score: f32,
+    },
     Elimination,
+    /// The meeting app (Accessibility or the Meet extension) showed this person speaking.
+    MeetingApp,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1257,6 +1295,143 @@ async fn write_speaker_assignment_hints(
     Ok(result.rows_affected() > 0)
 }
 
+/// Attendees for the cluster mapper: every session participant, the local user flagged so they
+/// are never given a remote cluster. `participants` are `(human_id, display_name, email)`.
+fn attendees_from_participants<'a>(
+    participants: impl IntoIterator<Item = (&'a str, &'a str, &'a str)>,
+    remote_human_ids: &[String],
+) -> Vec<Attendee> {
+    let mut seen = HashSet::new();
+    participants
+        .into_iter()
+        .filter(|(human_id, _, _)| !human_id.is_empty() && seen.insert(*human_id))
+        .map(|(human_id, name, email)| Attendee {
+            id: human_id.to_string(),
+            name: Some(name.trim().to_string()).filter(|name| !name.is_empty()),
+            emails: Some(email.trim().to_string())
+                .filter(|email| !email.is_empty())
+                .into_iter()
+                .collect(),
+            is_me: !remote_human_ids.iter().any(|id| id == human_id),
+        })
+        .collect()
+}
+
+/// The remote-channel words of a stored transcript, keyed by their cluster, for the meeting
+/// evidence's name votes.
+fn remote_cluster_words(words_json: &str, hints_json: &str) -> Vec<ClusterWord> {
+    let Ok(words) = serde_json::from_str::<Vec<StoredWord>>(words_json) else {
+        return Vec::new();
+    };
+    let hints: Vec<StoredHint> = serde_json::from_str(hints_json).unwrap_or_default();
+    let hinted = provider_speaker_index_by_word(&hints);
+    words
+        .iter()
+        .filter(|word| word.channel == REMOTE_CHANNEL)
+        .map(|word| ClusterWord {
+            cluster: speaker_key_for_word(
+                word,
+                word.id.as_ref().and_then(|id| hinted.get(id).copied()),
+            ),
+            start_ms: word.start_ms as i64,
+            end_ms: word.end_ms as i64,
+        })
+        .collect()
+}
+
+/// Names the meeting app showed per remote cluster, from the session's stored meeting evidence.
+/// Empty when the session has none (no call app was read), which leaves voiceprint-only naming
+/// exactly as it was.
+async fn meeting_cluster_votes_for_transcript(
+    pool: &sqlx::SqlitePool,
+    session_id: &str,
+    transcript_id: &str,
+    words_json: &str,
+    hints_json: &str,
+) -> Result<Vec<ClusterVote>, String> {
+    let stored: Option<Option<String>> = sqlx::query_scalar(
+        "SELECT json_extract(metadata_json, '$.speaker_context')
+         FROM sessions WHERE id = ? AND deleted_at IS NULL LIMIT 1",
+    )
+    .bind(session_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|error| error.to_string())?;
+    let Some(value) = stored
+        .flatten()
+        .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+    else {
+        return Ok(Vec::new());
+    };
+    let meetings = anlg_transcript::SpeakerContext::from_stored_value(&value).meetings;
+    if meetings.is_empty() {
+        return Ok(Vec::new());
+    }
+    let starts: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT id, started_at_ms FROM transcripts
+         WHERE session_id = ? AND deleted_at IS NULL ORDER BY started_at_ms",
+    )
+    .bind(session_id)
+    .fetch_all(pool)
+    .await
+    .map_err(|error| error.to_string())?;
+    let Some(started_at) = starts
+        .iter()
+        .find(|(id, _)| id == transcript_id)
+        .map(|(_, started_at)| *started_at)
+    else {
+        return Ok(Vec::new());
+    };
+    let transcript_starts: Vec<i64> = starts.iter().map(|(_, started_at)| *started_at).collect();
+    Ok(meeting_cluster_votes(
+        &meetings,
+        &transcript_starts,
+        started_at,
+        &remote_cluster_words(words_json, hints_json),
+    ))
+}
+
+/// Meeting-app names and voiceprints together, through the attendee mapper: the app's names claim
+/// their clusters first and voiceprints pick among what is left. Elimination is left to
+/// `eliminate_last_remote_speaker`, which knows every cluster of the transcript, not only those
+/// with evidence.
+fn namings_from_attendee_mapping(
+    votes: &[ClusterVote],
+    scores: &[(VoiceprintSpeakerKey, String, f32)],
+    attendees: &[Attendee],
+) -> Vec<SpeakerNaming> {
+    let voiceprint_scores: Vec<VoiceprintScore> = scores
+        .iter()
+        .map(|(cluster, attendee_id, score)| VoiceprintScore {
+            cluster: *cluster,
+            attendee_id: attendee_id.clone(),
+            score: *score,
+        })
+        .collect();
+    map_clusters_to_attendees(votes, &voiceprint_scores, attendees)
+        .into_iter()
+        .filter_map(|assignment| {
+            let basis = match assignment.source {
+                AssignmentSource::AppName => NamingBasis::MeetingApp,
+                AssignmentSource::Voiceprint => NamingBasis::Voiceprint {
+                    score: scores
+                        .iter()
+                        .find(|(cluster, id, _)| {
+                            *cluster == assignment.cluster && *id == assignment.attendee_id
+                        })
+                        .map_or(MIN_UNIQUE_SCORE, |(_, _, score)| *score),
+                },
+                AssignmentSource::Elimination => return None,
+            };
+            Some(SpeakerNaming {
+                speaker: assignment.cluster,
+                human_id: assignment.attendee_id,
+                basis,
+            })
+        })
+        .collect()
+}
+
 #[derive(Debug, Default)]
 struct SpeakerIndex {
     first_word_id: HashMap<VoiceprintSpeakerKey, String>,
@@ -1377,6 +1552,10 @@ fn automatic_speaker_hint(word_id: &str, human_id: &str, basis: NamingBasis) -> 
         NamingBasis::Elimination => serde_json::json!({
             "human_id": human_id,
             "source": "elimination",
+        }),
+        NamingBasis::MeetingApp => serde_json::json!({
+            "human_id": human_id,
+            "source": "meeting_app",
         }),
     };
     serde_json::json!({
@@ -1614,6 +1793,71 @@ mod tests {
             serde_json::from_str(hint["value"].as_str().unwrap()).unwrap();
         assert_eq!(value["human_id"], "ada");
         assert_eq!(value["source"], "elimination");
+        assert!(value.get("confidence").is_none());
+    }
+
+    #[test]
+    fn attendees_flag_the_local_user_and_drop_duplicates() {
+        let attendees = attendees_from_participants(
+            [
+                ("me", "Me", "me@x.io"),
+                ("ada", " Ada ", "ada@x.io"),
+                ("ada", "Ada", "ada@x.io"),
+                ("", "Nobody", ""),
+                ("bo", "", ""),
+            ],
+            &["ada".to_string(), "bo".to_string()],
+        );
+        let ids: Vec<_> = attendees.iter().map(|a| a.id.as_str()).collect();
+        assert_eq!(ids, ["me", "ada", "bo"]);
+        assert!(attendees[0].is_me && !attendees[1].is_me && !attendees[2].is_me);
+        assert_eq!(attendees[1].name.as_deref(), Some("Ada"));
+        assert_eq!(attendees[2].name, None);
+        assert!(attendees[2].emails.is_empty());
+    }
+
+    #[test]
+    fn remote_cluster_words_keep_only_remote_channel_words() {
+        let words = r#"[
+            {"id": "w1", "text": "hi", "start_ms": 0, "end_ms": 500, "channel": 0},
+            {"id": "w2", "text": "yo", "start_ms": 600, "end_ms": 900, "channel": 1, "speaker_index": 2}
+        ]"#;
+        let out = remote_cluster_words(words, "[]");
+        assert_eq!(out.len(), 1);
+        assert_eq!((out[0].start_ms, out[0].end_ms), (600, 900));
+        assert!(remote_cluster_words("not json", "[]").is_empty());
+    }
+
+    #[test]
+    fn attendee_mapping_prefers_app_names_then_voiceprints() {
+        let attendees = attendees_from_participants(
+            [("me", "Me", ""), ("ada", "Ada", ""), ("bo", "Bo", "")],
+            &["ada".to_string(), "bo".to_string()],
+        );
+        let ada_cluster = remote_speaker(0);
+        let bo_cluster = remote_speaker(1);
+        let votes = [ClusterVote {
+            cluster: ada_cluster,
+            name: "Ada".into(),
+            ms: 9_000,
+        }];
+        let scores = [(bo_cluster, "bo".to_string(), 0.8_f32)];
+        let namings = namings_from_attendee_mapping(&votes, &scores, &attendees);
+        let ada = namings.iter().find(|n| n.human_id == "ada").unwrap();
+        assert_eq!(ada.speaker, ada_cluster);
+        assert_eq!(ada.basis, NamingBasis::MeetingApp);
+        let bo = namings.iter().find(|n| n.human_id == "bo").unwrap();
+        assert_eq!(bo.speaker, bo_cluster);
+        assert!(matches!(bo.basis, NamingBasis::Voiceprint { .. }));
+        assert!(namings.iter().all(|n| n.human_id != "me"));
+    }
+
+    #[test]
+    fn meeting_app_hint_records_its_source() {
+        let hint = automatic_speaker_hint("w1", "ada", NamingBasis::MeetingApp);
+        let value: serde_json::Value =
+            serde_json::from_str(hint["value"].as_str().unwrap()).unwrap();
+        assert_eq!(value["source"], "meeting_app");
         assert!(value.get("confidence").is_none());
     }
 

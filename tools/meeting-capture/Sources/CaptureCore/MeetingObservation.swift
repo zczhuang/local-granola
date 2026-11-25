@@ -43,8 +43,9 @@ public struct MeetingObservation: Codable, Equatable {
   }
 }
 
-/// An explicit speaking signal from a platform adapter. Accessibility has shown none so far, so
-/// every observation carries an empty list and `speakerStatus` `unavailable`.
+/// An explicit speaking signal from a platform adapter. Webex shows none, so its observations carry
+/// an empty list and `speakerStatus` `unavailable`. Zoom and Teams report `available` only when a
+/// roster row states a speaking state (LOCAL-GRANOLA(mac-untested): labels not yet seen live).
 public struct SpeakerCue: Codable, Equatable {
   public let platform: String
   public let participantID: String

@@ -87,9 +87,23 @@ fn node_text(node: &serde_json::Value) -> String {
         .unwrap_or_default()
 }
 
+/// Provenance stored next to a generated document (same transaction).
+pub struct GenerationRecord<'a> {
+    pub source_hash: &'a str,
+    pub generation_metadata_json: &'a str,
+}
+
 pub async fn save_generated_summary(
     pool: &SqlitePool,
     request: SaveGeneratedSummaryRequest,
+) -> Result<(), String> {
+    save_generated_summary_with(pool, request, None).await
+}
+
+pub async fn save_generated_summary_with(
+    pool: &SqlitePool,
+    request: SaveGeneratedSummaryRequest,
+    record: Option<GenerationRecord<'_>>,
 ) -> Result<(), String> {
     let SaveGeneratedSummaryRequest {
         session_id,
@@ -181,6 +195,23 @@ pub async fn save_generated_summary(
     .map_err(|error| error.to_string())?;
     if updated != 1 {
         return Err(rollback_row_count_mismatch(transaction, 0, updated, 1).await);
+    }
+
+    if let Some(record) = record {
+        let rows = sqlx::query(
+            "UPDATE session_documents SET source_hash = ?, generation_metadata_json = ? WHERE id = ? AND session_id = ?",
+        )
+        .bind(record.source_hash)
+        .bind(record.generation_metadata_json)
+        .bind(&note_id)
+        .bind(&session_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| error.to_string())?
+        .rows_affected();
+        if rows != 1 {
+            return Err(rollback_row_count_mismatch(transaction, 0, rows, 1).await);
+        }
     }
 
     let deleted = delete_pending_auto_enhance(

@@ -6,6 +6,8 @@ import {
   mentionNodeSpec,
   sessionNodeSpec,
   taskItemNodeSpec,
+  aiLineDomAttrs,
+  parseAiLineAttrs,
   taskListNodeSpec,
   fileAttachmentNodeSpec,
 } from "../node-views";
@@ -155,9 +157,21 @@ const nodes: Record<string, NodeSpec> = {
   listItem: {
     content: "paragraph block*",
     defining: true,
-    parseDOM: [{ tag: "li:not([data-type])" }],
-    toDOM() {
-      return ["li", 0];
+    attrs: {
+      // LOCAL-GRANOLA: AI-generated line id and its transcript sources.
+      aiId: { default: null },
+      src: { default: null },
+    },
+    parseDOM: [
+      {
+        tag: "li:not([data-type])",
+        getAttrs(dom) {
+          return parseAiLineAttrs(dom as HTMLElement);
+        },
+      },
+    ],
+    toDOM(node) {
+      return ["li", aiLineDomAttrs(node.attrs), 0];
     },
   },
 

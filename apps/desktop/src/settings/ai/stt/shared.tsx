@@ -33,6 +33,7 @@ import {
 } from "~/settings/ai/shared";
 import { type ProviderRequirement } from "~/settings/ai/shared/eligibility";
 import { sortProviders } from "~/settings/ai/shared/sort-providers";
+import { filterLocalProviders, LOCAL_STT_PROVIDERS } from "~/shared/local-only";
 import { localSttQueries } from "~/stt/useLocalSttModel";
 
 export { localSttQueries as sttModelQueries };
@@ -302,6 +303,10 @@ const displayModelId = (model: string): string => {
 
   if (model === "soniqo-parakeet-streaming") {
     return "Parakeet Streaming";
+  }
+
+  if (model === "soniqo-parakeet-v3-live") {
+    return "Parakeet v3 Live";
   }
 
   if (model === "soniqo-parakeet-batch") {
@@ -1286,5 +1291,8 @@ const PROVIDER_ORDER = [
   "aquavoice",
 ] as const;
 
-export const PROVIDERS = sortProviders(_PROVIDERS, PROVIDER_ORDER);
+export const PROVIDERS = filterLocalProviders(
+  sortProviders(_PROVIDERS, PROVIDER_ORDER),
+  LOCAL_STT_PROVIDERS,
+);
 export type ProviderId = (typeof _PROVIDERS)[number]["id"];

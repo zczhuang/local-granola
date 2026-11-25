@@ -901,6 +901,40 @@ private actor SoniqoBridge {
     }
   }
 
+  // LOCAL-GRANOLA(mac-untested): transcribes raw 16 kHz samples (one VAD
+  // window from `ParakeetV3Live`) with the same chunking/padding rules as
+  // file transcription.
+  func transcribeSamplesJSON(modelId: String, samplesData: Data, language: String) async -> String {
+    do {
+      guard let kind = SpeechModelKind.resolve(modelId) else {
+        throw SoniqoBridgeError.message("Unsupported Soniqo model: \(modelId)")
+      }
+
+      let samples = try decodeFloatSamples(from: samplesData)
+      let trimmedLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines)
+      let model = try await ensureModelLoaded(kind)
+      defer { markModelIdle(kind) }
+      let text = try transcribeFileAudio(
+        model: model,
+        kind: kind,
+        audio: samples,
+        sampleRate: soniqoFileTranscriptionSampleRate,
+        language: trimmedLanguage.isEmpty ? nil : trimmedLanguage
+      )
+
+      return encodeFileTranscriptionJSON(
+        text: text,
+        durationSeconds: Double(samples.count) / Double(soniqoFileTranscriptionSampleRate)
+      )
+    } catch {
+      return encodeFileTranscriptionJSON(
+        text: "",
+        durationSeconds: 0,
+        error: error.localizedDescription
+      )
+    }
+  }
+
   private func transcribeFileAudio(
     model: LoadedSpeechModel,
     kind: SpeechModelKind,
@@ -1306,6 +1340,22 @@ public func _soniqo_transcribe_audio_file(
       await SoniqoBridge.shared.transcribeAudioFileJSON(
         modelId: modelId.toString(),
         audioPath: audioPath.toString(),
+        language: language.toString()
+      )
+    })
+}
+
+@_cdecl("_soniqo_transcribe_samples")
+public func _soniqo_transcribe_samples(
+  modelId: SRString,
+  samples: SRData,
+  language: SRString
+) -> SRString {
+  SRString(
+    waitForValue {
+      await SoniqoBridge.shared.transcribeSamplesJSON(
+        modelId: modelId.toString(),
+        samplesData: Data(samples.toArray()),
         language: language.toString()
       )
     })

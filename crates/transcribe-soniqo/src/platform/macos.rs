@@ -18,6 +18,11 @@ swift!(fn _soniqo_transcribe_audio_file(
     audio_path: &SRString,
     language: &SRString
 ) -> SRString);
+swift!(fn _soniqo_transcribe_samples(
+    model_id: &SRString,
+    samples: &SRData,
+    language: &SRString
+) -> SRString);
 swift!(fn _soniqo_diarize_audio(
     model_id: &SRString,
     samples: &SRData,
@@ -63,7 +68,7 @@ struct StatusPayload {
 }
 
 pub(crate) fn model_cache_dir(model: SoniqoModel) -> Result<PathBuf> {
-    let model_id = sr_string(model.as_str());
+    let model_id = sr_string(model.bridge_model().as_str());
     let path = unsafe { _soniqo_model_cache_dir(&model_id) };
     let path = path.as_str().to_string();
 
@@ -91,7 +96,7 @@ pub(crate) fn diarization_cache_dir() -> Result<PathBuf> {
 }
 
 pub(crate) fn model_download_state(model: SoniqoModel) -> Result<ModelDownloadState> {
-    let model_id = sr_string(model.as_str());
+    let model_id = sr_string(model.bridge_model().as_str());
     let payload = unsafe { _soniqo_model_download_state(&model_id) };
     let mut state: ModelDownloadState = serde_json::from_str(payload.as_str())?;
     state.error = state.error.as_deref().map(user_facing_download_error);
@@ -100,7 +105,7 @@ pub(crate) fn model_download_state(model: SoniqoModel) -> Result<ModelDownloadSt
 }
 
 pub(crate) fn start_model_download(model: SoniqoModel) -> Result<()> {
-    let model_id = sr_string(model.as_str());
+    let model_id = sr_string(model.bridge_model().as_str());
     if unsafe { _soniqo_model_start_download(&model_id) } {
         Ok(())
     } else {
@@ -112,7 +117,7 @@ pub(crate) fn start_model_download(model: SoniqoModel) -> Result<()> {
 }
 
 pub(crate) fn reset_model(model: SoniqoModel) -> Result<()> {
-    let model_id = sr_string(model.as_str());
+    let model_id = sr_string(model.bridge_model().as_str());
     if unsafe { _soniqo_model_reset(&model_id) } {
         Ok(())
     } else {
@@ -128,7 +133,7 @@ pub(crate) fn transcribe_file(
     path: &Path,
     language: &str,
 ) -> Result<FileTranscript> {
-    let model_id = sr_string(model.as_str());
+    let model_id = sr_string(model.bridge_model().as_str());
     let audio_path = sr_string(&path.to_string_lossy());
     let language = sr_string(language);
     let payload = unsafe { _soniqo_transcribe_audio_file(&model_id, &audio_path, &language) };
@@ -146,12 +151,31 @@ pub(crate) fn transcribe_file(
     })
 }
 
+/// LOCAL-GRANOLA(mac-untested): `ParakeetV3Live` windows go through here.
+pub(crate) fn transcribe_samples(
+    model: SoniqoModel,
+    samples: &[f32],
+    language: &str,
+) -> Result<FileTranscript> {
+    let model_id = sr_string(model.bridge_model().as_str());
+    let samples_data = floats_to_sr_data(samples);
+    let language = sr_string(language);
+    let payload = unsafe { _soniqo_transcribe_samples(&model_id, &samples_data, &language) };
+    let result: FileTranscriptionPayload = serde_json::from_str(payload.as_str())?;
+
+    if let Some(error) = result.error {
+        return Err(Error::Bridge(user_facing_download_error(&error)));
+    }
+
+    Ok(FileTranscript::new(result.text, result.duration_seconds))
+}
+
 pub(crate) fn diarize_samples(
     model: SoniqoModel,
     samples: &[f32],
     exact_speakers: usize,
 ) -> Result<Vec<DiarizationSegment>> {
-    let model_id = sr_string(model.as_str());
+    let model_id = sr_string(model.bridge_model().as_str());
     let samples = floats_to_sr_data(samples);
     let exact_speakers_value = sr_string(&exact_speakers.to_string());
     let payload = unsafe { _soniqo_diarize_audio(&model_id, &samples, &exact_speakers_value) };
@@ -171,7 +195,7 @@ pub(crate) fn diarize_samples(
 }
 
 pub(crate) fn live_start(model: SoniqoModel) -> Result<String> {
-    let model_id = sr_string(model.as_str());
+    let model_id = sr_string(model.bridge_model().as_str());
     let payload = unsafe { _soniqo_live_start(&model_id) };
     let result: StatusPayload = serde_json::from_str(payload.as_str())?;
 

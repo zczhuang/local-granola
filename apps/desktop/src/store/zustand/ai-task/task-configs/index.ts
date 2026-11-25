@@ -21,6 +21,17 @@ import type { SettingValues } from "~/settings/schema";
 import { StreamTransform } from "~/store/zustand/ai-task/shared/transform_infra";
 import type { TaskState, TaskStepInfo } from "~/store/zustand/ai-task/tasks";
 
+export type LocalEnhanceArgs = {
+  sessionId: string;
+  enhancedNoteId: string;
+  regenerate: boolean;
+  pendingAutoEnhance?: {
+    generation: string;
+    expectedBody: string;
+    expectedContentFormat: string;
+  };
+};
+
 export type TaskType = "enhance" | "title";
 
 export interface TaskArgsMap {
@@ -28,6 +39,8 @@ export interface TaskArgsMap {
     sessionId: string;
     enhancedNoteId: string;
     templateId?: string;
+    /** LOCAL-GRANOLA: discard manual edits to AI lines (enhance_local only). */
+    regenerate?: boolean;
     pendingAutoEnhance?: {
       generation: string;
       expectedBody: string;
@@ -47,6 +60,8 @@ export interface TaskArgsMapTransformed {
       imageContext: EnhanceImageContext[];
       lengthPolicy: SummaryLengthPolicy | null;
       dictionaryTerms: string[];
+      /** LOCAL-GRANOLA: what `enhance_local` needs; set by transformArgs. */
+      localEnhance?: LocalEnhanceArgs;
     };
   title: TitleSystem & TitleUser & { dictionaryTerms: string[] };
 }

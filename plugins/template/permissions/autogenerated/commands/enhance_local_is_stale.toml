@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-enhance-local-is-stale"
+description = "Enables the enhance_local_is_stale command without any pre-configured scope."
+commands.allow = ["enhance_local_is_stale"]
+
+[[permission]]
+identifier = "deny-enhance-local-is-stale"
+description = "Denies the enhance_local_is_stale command without any pre-configured scope."
+commands.deny = ["enhance_local_is_stale"]

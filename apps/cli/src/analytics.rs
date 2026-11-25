@@ -6,7 +6,8 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub fn capture_command_completed(command: &str, outcome: &str, duration: Duration) {
-    if !telemetry_enabled() {
+    // LOCAL_ONLY builds never spawn the analytics `curl`, whatever the environment says.
+    if anlg_local_only::LOCAL_ONLY || !telemetry_enabled() {
         return;
     }
 
@@ -66,9 +67,19 @@ pub fn capture_command_completed(command: &str, outcome: &str, duration: Duratio
 }
 
 pub fn telemetry_enabled() -> bool {
-    std::env::var("ANARLOG_ANALYTICS")
-        .map(|value| matches!(value.to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
-        .unwrap_or(false)
+    telemetry_enabled_with(
+        anlg_local_only::LOCAL_ONLY,
+        std::env::var("ANARLOG_ANALYTICS").ok().as_deref(),
+    )
+}
+
+/// Analytics and error reporting are opt-in and are forced off when the build
+/// is local-only, even if `ANARLOG_ANALYTICS` is set.
+fn telemetry_enabled_with(local_only: bool, opt_in: Option<&str>) -> bool {
+    !local_only
+        && opt_in.is_some_and(|value| {
+            matches!(value.to_ascii_lowercase().as_str(), "1" | "true" | "yes")
+        })
 }
 
 fn posthog_key() -> Option<String> {
@@ -113,4 +124,27 @@ fn new_id() -> String {
         .hash(&mut hasher);
     std::process::id().hash(&mut hasher);
     format!("cli-{:016x}", hasher.finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_only_forces_telemetry_off_even_when_opted_in() {
+        for value in ["1", "true", "YES"] {
+            assert!(telemetry_enabled_with(false, Some(value)));
+            assert!(!telemetry_enabled_with(true, Some(value)));
+        }
+        assert!(!telemetry_enabled_with(false, None));
+        assert!(!telemetry_enabled_with(false, Some("0")));
+    }
+
+    #[test]
+    fn this_build_is_local_only_and_never_reports() {
+        assert!(std::hint::black_box(anlg_local_only::LOCAL_ONLY));
+        assert!(!telemetry_enabled());
+        // Returns before touching curl or the network.
+        capture_command_completed("mcp", "succeeded", Duration::from_millis(1));
+    }
 }

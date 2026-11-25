@@ -312,7 +312,11 @@ impl<'a> MeetingNames<'a> {
     /// The capture `word` was recorded in, with its capture time: the latest capture started by
     /// then that had neither ended nor been followed by another transcript. Ties name nobody.
     fn capture_of(&self, word: &SegmentWord) -> Option<(usize, i64)> {
-        let at = self.started_at.saturating_add(word.start_ms);
+        self.capture_at(self.started_at.saturating_add(word.start_ms))
+    }
+
+    /// `capture_of` for an epoch-ms instant.
+    fn capture_at(&self, at: i64) -> Option<(usize, i64)> {
         let mut best: Option<usize> = None;
         let mut tied = false;
         for (index, evidence) in self.meetings.iter().enumerate() {
@@ -534,6 +538,8 @@ pub fn remote_name_from_title(title: &str, self_names: &[String]) -> Option<Stri
         _ => None,
     }
 }
+
+pub mod attendees;
 
 #[cfg(test)]
 mod tests;

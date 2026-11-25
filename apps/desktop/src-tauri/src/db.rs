@@ -61,6 +61,9 @@ pub fn is_newer_schema_error(error: &impl std::fmt::Display) -> bool {
 }
 pub fn cloudsync_runtime_config_from_env()
 -> Result<Option<anlg_db_core::CloudsyncRuntimeConfig>, String> {
+    if anlg_local_only::LOCAL_ONLY {
+        return Ok(None);
+    }
     cloudsync_runtime_config(|key| std::env::var(key).ok())
 }
 

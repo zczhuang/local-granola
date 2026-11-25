@@ -11,6 +11,7 @@ import {
   loadCaptureLifecycleMarker,
 } from "./capture-lifecycle-storage";
 import { useListener } from "./contexts";
+import { createEngineRoutingProbe } from "./engine-routing";
 import { startMeetingChatCapture } from "./meeting-chat-capture";
 import {
   MEETING_DISCLOSURE_MESSAGE,
@@ -28,9 +29,11 @@ import {
 import { trackAnalyticsEvent } from "~/analytics";
 import { useShell } from "~/contexts/shell";
 import { normalizeAudioRetention } from "~/services/audio-retention";
+import { shouldRetainAudio } from "~/services/audio-retention-policy";
 import { getSessionEvent } from "~/session/utils";
 import { getBaseLanguageDisplayName } from "~/settings/general/language";
 import { useConfigValue } from "~/shared/config";
+import { LOCAL_ONLY } from "~/shared/local-only";
 import { useTabs } from "~/store/zustand/tabs";
 import {
   getLiveTranscriptionConfig,
@@ -85,9 +88,14 @@ export function useStartListeningState(
   const spokenLanguages = useConfigValue("spoken_languages");
   const dictionaryTerms = useConfigValue("personalization_dictionary_terms");
   const microphoneDevice = useConfigValue("microphone_device");
-  const retainAudio =
-    normalizeAudioRetention(useConfigValue("audio_retention")) !== "none" ||
-    requiresRetainedBatchAudio(conn?.provider, conn?.model);
+  const sttEngineOverride = useConfigValue("stt_engine_override");
+  // Local-only "delete after transcription" still records, and deletes once
+  // processing (and any held post-meeting re-pass) is done.
+  const retainAudio = shouldRetainAudio({
+    localOnly: LOCAL_ONLY,
+    audioRetention: normalizeAudioRetention(useConfigValue("audio_retention")),
+    requiresBatchAudio: requiresRetainedBatchAudio(conn?.provider, conn?.model),
+  });
   const meetingDisclosureAutoSendChat = useConfigValue(
     "consent_auto_send_chat",
   );
@@ -195,6 +203,19 @@ export function useStartListeningState(
       return;
     }
 
+    // LOCAL-GRANOLA: after ~30 s of speech, ask the stt-routing router whether this meeting needs
+    // Whisper (Mandarin / mixed); if so the post-meeting re-pass is forced.
+    const routingProbe = createEngineRoutingProbe({
+      sessionId,
+      override: sttEngineOverride,
+      liveEngine: conn?.model,
+      declaredLanguages: getTranscriptionLanguages(aiLanguage, spokenLanguages),
+    });
+    const handlePersist: typeof lifecycle.handlePersist = (delta) => {
+      routingProbe.observe(delta);
+      lifecycle.handlePersist(delta);
+    };
+
     let started = false;
     try {
       started = await start(
@@ -215,7 +236,7 @@ export function useStartListeningState(
           ...(extensionStart ? { extension_start: extensionStart } : {}),
         },
         {
-          handlePersist: lifecycle.handlePersist,
+          handlePersist,
           onStopped: lifecycle.onStopped,
         },
       );
@@ -359,6 +380,7 @@ export function useStartListeningState(
     microphoneDevice,
     reportStartFailure,
     retainAudio,
+    sttEngineOverride,
     openNew,
     participantHumanIds,
     session,

@@ -47,6 +47,10 @@ type EnhanceOpts = {
   templateId?: string | null;
   targetNoteId?: string;
   templateTitle?: string;
+  /** LOCAL-GRANOLA: re-run `enhance_local` into `targetNoteId`, keeping its content and the user's edits to AI lines. */
+  localRefresh?: boolean;
+  /** LOCAL-GRANOLA: discard manual edits and deletions of AI lines. */
+  regenerate?: boolean;
 };
 
 type EnhancerEvent =
@@ -510,7 +514,11 @@ export class EnhancerService {
       return { type: "already_active", noteId: note.id };
     }
 
-    if (targetNote) {
+    if (opts?.localRefresh && !targetNote) {
+      return { type: "already_active", noteId: opts.targetNoteId ?? "" };
+    }
+
+    if (targetNote && !opts?.localRefresh) {
       await this.replaceNoteTemplate(
         sessionId,
         targetNote.id,
@@ -528,6 +536,7 @@ export class EnhancerService {
     }
 
     if (
+      !opts?.localRefresh &&
       existingTask?.status === "success" &&
       hasSummaryContent(note.content, snapshot.title)
     ) {
@@ -544,6 +553,7 @@ export class EnhancerService {
           sessionId,
           enhancedNoteId: note.id,
           templateId,
+          ...(opts?.regenerate ? { regenerate: true } : {}),
           ...(opts?.pendingAutoEnhance
             ? {
                 pendingAutoEnhance: {

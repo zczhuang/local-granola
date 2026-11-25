@@ -17,11 +17,13 @@ tokio = { workspace = true, features = ["macros", "rt"] }
 
 [dependencies]
 anlg-db-app = { workspace = true }
+anlg-enhanced-notes = { workspace = true, features = ["ollama"] }
 anlg-gbnf = { workspace = true }
 anlg-language = { workspace = true, features = ["dominant"] }
 anlg-summary = { workspace = true }
 anlg-template-app = { workspace = true }
 anlg-template-app-legacy = { workspace = true }
+anlg-tiptap = { workspace = true }
 tauri-plugin-db = { workspace = true }
 
 chrono = { workspace = true }

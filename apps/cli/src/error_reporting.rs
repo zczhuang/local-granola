@@ -2,7 +2,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 pub fn init() -> Option<sentry::ClientInitGuard> {
-    if !crate::analytics::telemetry_enabled() {
+    // `telemetry_enabled` is false whenever the build is local-only, so Sentry
+    // is never initialised and its transport never opens.
+    if anlg_local_only::LOCAL_ONLY || !crate::analytics::telemetry_enabled() {
         return None;
     }
 
@@ -32,6 +34,9 @@ pub fn init() -> Option<sentry::ClientInitGuard> {
 }
 
 pub fn capture_command_error(command: &str, error_code: &str) {
+    if anlg_local_only::LOCAL_ONLY {
+        return;
+    }
     sentry::with_scope(
         |scope| {
             scope.set_tag("anarlog.operation", "cli_command");
@@ -47,5 +52,16 @@ pub fn capture_command_error(command: &str, error_code: &str) {
 pub fn flush() {
     if let Some(client) = sentry::Hub::current().client() {
         client.close(Some(Duration::from_millis(750)));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn local_only_build_never_initialises_sentry() {
+        assert!(std::hint::black_box(anlg_local_only::LOCAL_ONLY));
+        assert!(super::init().is_none());
+        super::capture_command_error("mcp", "operation_failed");
+        super::flush();
     }
 }

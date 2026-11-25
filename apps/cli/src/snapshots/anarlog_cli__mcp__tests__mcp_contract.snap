@@ -3,7 +3,7 @@ source: apps/cli/src/mcp.rs
 expression: "canonicalize_json(serde_json::json!({\n    \"protocol_version\": info.protocol_version, \"instructions\":\n    info.instructions, \"tools\": tools, \"resource_templates\": templates,\n}))"
 ---
 {
-  "instructions": "Local access to Anarlog meeting data. Start with list_meetings to resolve a meeting_id; to scope work to a project or client, call list_folders and pass a returned path as folder_path. Then call get_meeting for notes, summaries, participants, and action items. Request transcript pages with get_meeting_transcript and continue with pagination.next_offset; each page is capped at 500 words. Use get_recurring_meeting_history for series context. Use export_meeting only when the task needs the complete record including transcripts. To persist an edit, call propose_summary_edit or propose_memo_edit; the result stays pending until a human applies it in the desktop app. List or inspect staged work with list_proposals and get_proposal. decline_proposal discards a pending proposal without changing the meeting. Never invent meeting titles, dates, or ids. If list_meetings returns no meetings, say so. Never access SQLite directly, or claim a proposal was applied. Documentation: https://docs.anarlog.so",
+  "instructions": "Local access to Anarlog meeting data. Start with list_meetings to resolve a meeting_id; to scope work to a project or client, call list_folders and pass a returned path as folder_path. Then call get_meeting for notes, summaries, participants, and action items. Request transcript pages with get_meeting_transcript and continue with pagination.next_offset; each page is capped at 500 words. Use get_recurring_meeting_history for series context. Use search_meetings to find meetings by words in titles, notes or transcripts. get_enhanced_notes returns the saved enhanced notes with cited sources, and get_transcript_segment reads the transcript behind a citation or a time range. preview_enhanced_notes runs the local Ollama model and returns an unsaved result. Everything runs on this computer. Use export_meeting only when the task needs the complete record including transcripts. This server is read-only unless it was started with --allow-writes. To persist an edit, call propose_summary_edit or propose_memo_edit; the result stays pending until a human applies it in the desktop app. List or inspect staged work with list_proposals and get_proposal. decline_proposal discards a pending proposal without changing the meeting. Never invent meeting titles, dates, or ids. If list_meetings returns no meetings, say so. Never access SQLite directly, or claim a proposal was applied. Documentation: https://docs.anarlog.so",
   "protocol_version": "2026-07-28",
   "resource_templates": [
     {
@@ -33,7 +33,7 @@ expression: "canonicalize_json(serde_json::json!({\n    \"protocol_version\": in
         "openWorldHint": false,
         "readOnlyHint": false
       },
-      "description": "Decline a pending proposal without changing the meeting. Applied proposals cannot be declined.",
+      "description": "WRITES (requires `anarlog mcp --allow-writes`). Decline a pending proposal without changing the meeting. Applied proposals cannot be declined.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "properties": {
@@ -424,6 +424,274 @@ expression: "canonicalize_json(serde_json::json!({\n    \"protocol_version\": in
         "type": "object"
       },
       "title": "Export meeting"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Read a meeting's saved enhanced notes from the local database as structured data: the user's own typed lines in order, each with its AI bullets, and each bullet's resolved sources (speaker, start/end time, the cited transcript words), plus decisions, action items (owner and due when recorded) and open questions. Also returns a Markdown rendering with [^n] footnotes whose definitions start with [mm:ss]. Read-only; no network and no model. Fails with not found when the meeting has no enhanced notes.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "document_id": {
+            "default": null,
+            "description": "Specific enhanced document id; defaults to the most recently updated one",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "meeting_id": {
+            "description": "Anarlog meeting id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meeting_id"
+        ],
+        "type": "object"
+      },
+      "name": "get_enhanced_notes",
+      "outputSchema": {
+        "$defs": {
+          "AiBullet": {
+            "properties": {
+              "ai_id": {
+                "type": "string"
+              },
+              "sources": {
+                "items": {
+                  "$ref": "#/$defs/ResolvedSource"
+                },
+                "type": "array"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ai_id",
+              "text",
+              "sources"
+            ],
+            "type": "object"
+          },
+          "EnhancedActionItem": {
+            "properties": {
+              "ai_id": {
+                "type": "string"
+              },
+              "done": {
+                "type": "boolean"
+              },
+              "due": {
+                "description": "Null when the saved document does not record a due date.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "owner": {
+                "description": "Null when the saved document does not record an owner.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sources": {
+                "items": {
+                  "$ref": "#/$defs/ResolvedSource"
+                },
+                "type": "array"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ai_id",
+              "text",
+              "done",
+              "sources"
+            ],
+            "type": "object"
+          },
+          "NoteLine": {
+            "properties": {
+              "ai_bullets": {
+                "items": {
+                  "$ref": "#/$defs/AiBullet"
+                },
+                "type": "array"
+              },
+              "depth": {
+                "description": "Nesting depth of the user's list item (0 for top level).",
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "description": "`paragraph`, `heading` or `list_item`.",
+                "type": "string"
+              },
+              "text": {
+                "description": "The user's own typed text, never rewritten.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "kind",
+              "depth",
+              "ai_bullets"
+            ],
+            "type": "object"
+          },
+          "ResolvedSource": {
+            "description": "A cited stretch of transcript, resolved to speakers, times and words.",
+            "properties": {
+              "end": {
+                "type": "string"
+              },
+              "end_ms": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "end_word_id": {
+                "type": "string"
+              },
+              "resolved": {
+                "description": "False when the cited words no longer exist (transcript edited or deleted).",
+                "type": "boolean"
+              },
+              "speakers": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "start": {
+                "description": "`mm:ss` (or `h:mm:ss`).",
+                "type": "string"
+              },
+              "start_ms": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "start_word_id": {
+                "type": "string"
+              },
+              "text": {
+                "description": "The cited transcript words, truncated to about 1200 characters.",
+                "type": "string"
+              },
+              "transcript_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "transcript_id",
+              "start_word_id",
+              "end_word_id",
+              "start_ms",
+              "end_ms",
+              "start",
+              "end",
+              "speakers",
+              "text",
+              "resolved"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "action_items": {
+            "items": {
+              "$ref": "#/$defs/EnhancedActionItem"
+            },
+            "type": "array"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/$defs/AiBullet"
+            },
+            "type": "array"
+          },
+          "document_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "generation": {
+            "description": "Raw generation metadata stored with the document (model, digests, ...)."
+          },
+          "lines": {
+            "description": "The user's typed lines in order, each with its AI bullets.",
+            "items": {
+              "$ref": "#/$defs/NoteLine"
+            },
+            "type": "array"
+          },
+          "markdown": {
+            "description": "Markdown rendering with `[^n]` citations; each footnote starts with `[mm:ss]`.",
+            "type": "string"
+          },
+          "meeting_id": {
+            "type": "string"
+          },
+          "open_questions": {
+            "items": {
+              "$ref": "#/$defs/AiBullet"
+            },
+            "type": "array"
+          },
+          "origin": {
+            "description": "`saved` for a stored document, `preview` for an unsaved model run.",
+            "type": "string"
+          },
+          "overview": {
+            "description": "AI bullets under the generated Overview (meetings without typed notes).",
+            "items": {
+              "$ref": "#/$defs/AiBullet"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          },
+          "unresolved_sources": {
+            "description": "Number of cited sources whose transcript words could not be found.",
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "meeting_id",
+          "title",
+          "origin",
+          "updated_at",
+          "generation",
+          "lines",
+          "overview",
+          "decisions",
+          "action_items",
+          "open_questions",
+          "unresolved_sources",
+          "markdown"
+        ],
+        "title": "EnhancedNotes",
+        "type": "object"
+      },
+      "title": "Get enhanced notes"
     },
     {
       "annotations": {
@@ -1104,11 +1372,161 @@ expression: "canonicalize_json(serde_json::json!({\n    \"protocol_version\": in
     {
       "annotations": {
         "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Read the transcript text for a source reference (transcript_id plus start_word_id and end_word_id, as cited by get_enhanced_notes) or for a time range (start_ms and end_ms as stored on transcript words). Returns speaker turns with speaker names and mm:ss times, and a ready-to-read text block. Read-only; reads only the local database; no network and no model.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "end_ms": {
+            "default": null,
+            "description": "Range end in milliseconds (use with start_ms)",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "end_word_id": {
+            "default": null,
+            "description": "Last word id of a source ref (use with start_word_id)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_words": {
+            "description": "Maximum words returned; defaults to 1000 and is capped at 3000",
+            "format": "uint32",
+            "maximum": 3000,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "meeting_id": {
+            "description": "Anarlog meeting id",
+            "type": "string"
+          },
+          "start_ms": {
+            "default": null,
+            "description": "Range start in milliseconds, as stored on transcript words (use with end_ms)",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "start_word_id": {
+            "default": null,
+            "description": "First word id of a source ref (use with end_word_id)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "transcript_id": {
+            "default": null,
+            "description": "Transcript id from a source ref; optional for time ranges (all transcripts are searched)",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "meeting_id"
+        ],
+        "type": "object"
+      },
+      "name": "get_transcript_segment",
+      "outputSchema": {
+        "$defs": {
+          "SegmentTurn": {
+            "properties": {
+              "end": {
+                "type": "string"
+              },
+              "end_ms": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "speaker": {
+                "type": "string"
+              },
+              "start": {
+                "type": "string"
+              },
+              "start_ms": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "text": {
+                "type": "string"
+              },
+              "transcript_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "transcript_id",
+              "speaker",
+              "start_ms",
+              "end_ms",
+              "start",
+              "end",
+              "text"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "meeting_id": {
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/$defs/SegmentTurn"
+            },
+            "type": "array"
+          },
+          "text": {
+            "description": "`[mm:ss] Speaker: text` lines, one per speaker turn.",
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "word_count": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "meeting_id",
+          "segments",
+          "text",
+          "word_count",
+          "truncated"
+        ],
+        "title": "TranscriptSegment",
+        "type": "object"
+      },
+      "title": "Get transcript segment"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
         "idempotentHint": false,
         "openWorldHint": true,
         "readOnlyHint": false
       },
-      "description": "Create a meeting from a local audio file using the running Anarlog desktop app and its configured providers. May send audio to the configured transcription provider and use paid quota. file_path is on this computer, not a remote host. Returns durable job and meeting IDs. Reuse request_key on retries; poll get_recording_import until done or failed.",
+      "description": "WRITES (requires `anarlog mcp --allow-writes`). Create a meeting from a local audio file using the running Anarlog desktop app and its configured providers. May send audio to the configured transcription provider and use paid quota. file_path is on this computer, not a remote host. Returns durable job and meeting IDs. Reuse request_key on retries; poll get_recording_import until done or failed.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "properties": {
@@ -1649,9 +2067,304 @@ expression: "canonicalize_json(serde_json::json!({\n    \"protocol_version\": in
         "destructiveHint": false,
         "idempotentHint": false,
         "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "CALLS THE LOCAL MODEL. Runs the enhanced-notes pass for one meeting with the Ollama model on this computer (loopback only; any non-loopback Ollama URL is refused) and returns the result in the same shape as get_enhanced_notes with origin \"preview\". NOTHING IS SAVED: the database is not written and the desktop app's notes are untouched. It can take minutes on long meetings. To keep a result, a human applies it in the desktop app; you may stage the markdown with propose_summary_edit, which also stays pending until a human applies it.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "meeting_id": {
+            "description": "Anarlog meeting id",
+            "type": "string"
+          },
+          "model": {
+            "description": "Ollama model name; defaults to the configured notes model",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "meeting_id"
+        ],
+        "type": "object"
+      },
+      "name": "preview_enhanced_notes",
+      "outputSchema": {
+        "$defs": {
+          "AiBullet": {
+            "properties": {
+              "ai_id": {
+                "type": "string"
+              },
+              "sources": {
+                "items": {
+                  "$ref": "#/$defs/ResolvedSource"
+                },
+                "type": "array"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ai_id",
+              "text",
+              "sources"
+            ],
+            "type": "object"
+          },
+          "EnhancedActionItem": {
+            "properties": {
+              "ai_id": {
+                "type": "string"
+              },
+              "done": {
+                "type": "boolean"
+              },
+              "due": {
+                "description": "Null when the saved document does not record a due date.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "owner": {
+                "description": "Null when the saved document does not record an owner.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sources": {
+                "items": {
+                  "$ref": "#/$defs/ResolvedSource"
+                },
+                "type": "array"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ai_id",
+              "text",
+              "done",
+              "sources"
+            ],
+            "type": "object"
+          },
+          "EnhancedNotes": {
+            "properties": {
+              "action_items": {
+                "items": {
+                  "$ref": "#/$defs/EnhancedActionItem"
+                },
+                "type": "array"
+              },
+              "decisions": {
+                "items": {
+                  "$ref": "#/$defs/AiBullet"
+                },
+                "type": "array"
+              },
+              "document_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "generation": {
+                "description": "Raw generation metadata stored with the document (model, digests, ...)."
+              },
+              "lines": {
+                "description": "The user's typed lines in order, each with its AI bullets.",
+                "items": {
+                  "$ref": "#/$defs/NoteLine"
+                },
+                "type": "array"
+              },
+              "markdown": {
+                "description": "Markdown rendering with `[^n]` citations; each footnote starts with `[mm:ss]`.",
+                "type": "string"
+              },
+              "meeting_id": {
+                "type": "string"
+              },
+              "open_questions": {
+                "items": {
+                  "$ref": "#/$defs/AiBullet"
+                },
+                "type": "array"
+              },
+              "origin": {
+                "description": "`saved` for a stored document, `preview` for an unsaved model run.",
+                "type": "string"
+              },
+              "overview": {
+                "description": "AI bullets under the generated Overview (meetings without typed notes).",
+                "items": {
+                  "$ref": "#/$defs/AiBullet"
+                },
+                "type": "array"
+              },
+              "title": {
+                "type": "string"
+              },
+              "unresolved_sources": {
+                "description": "Number of cited sources whose transcript words could not be found.",
+                "format": "uint",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "updated_at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "meeting_id",
+              "title",
+              "origin",
+              "updated_at",
+              "generation",
+              "lines",
+              "overview",
+              "decisions",
+              "action_items",
+              "open_questions",
+              "unresolved_sources",
+              "markdown"
+            ],
+            "type": "object"
+          },
+          "NoteLine": {
+            "properties": {
+              "ai_bullets": {
+                "items": {
+                  "$ref": "#/$defs/AiBullet"
+                },
+                "type": "array"
+              },
+              "depth": {
+                "description": "Nesting depth of the user's list item (0 for top level).",
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "description": "`paragraph`, `heading` or `list_item`.",
+                "type": "string"
+              },
+              "text": {
+                "description": "The user's own typed text, never rewritten.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "kind",
+              "depth",
+              "ai_bullets"
+            ],
+            "type": "object"
+          },
+          "ResolvedSource": {
+            "description": "A cited stretch of transcript, resolved to speakers, times and words.",
+            "properties": {
+              "end": {
+                "type": "string"
+              },
+              "end_ms": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "end_word_id": {
+                "type": "string"
+              },
+              "resolved": {
+                "description": "False when the cited words no longer exist (transcript edited or deleted).",
+                "type": "boolean"
+              },
+              "speakers": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "start": {
+                "description": "`mm:ss` (or `h:mm:ss`).",
+                "type": "string"
+              },
+              "start_ms": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "start_word_id": {
+                "type": "string"
+              },
+              "text": {
+                "description": "The cited transcript words, truncated to about 1200 characters.",
+                "type": "string"
+              },
+              "transcript_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "transcript_id",
+              "start_word_id",
+              "end_word_id",
+              "start_ms",
+              "end_ms",
+              "start",
+              "end",
+              "speakers",
+              "text",
+              "resolved"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "notes": {
+            "$ref": "#/$defs/EnhancedNotes"
+          },
+          "saved": {
+            "description": "Always false: previews are never written to the database.",
+            "type": "boolean"
+          },
+          "warnings": {
+            "description": "Problems worth knowing about, such as dropped unsupported bullets.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "saved",
+          "model",
+          "warnings",
+          "notes"
+        ],
+        "title": "PreviewEnhancedNotes",
+        "type": "object"
+      },
+      "title": "Preview enhanced notes"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
         "readOnlyHint": false
       },
-      "description": "Propose a complete memo replacement. The proposal stays pending until a human applies it in the Anarlog desktop app.",
+      "description": "WRITES a pending proposal row (requires `anarlog mcp --allow-writes`); never edits the meeting itself. Propose a complete memo replacement. The proposal stays pending until a human applies it in the Anarlog desktop app.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "properties": {
@@ -1735,7 +2448,7 @@ expression: "canonicalize_json(serde_json::json!({\n    \"protocol_version\": in
         "openWorldHint": false,
         "readOnlyHint": false
       },
-      "description": "Propose a complete summary replacement. The proposal stays pending until a human applies it in the Anarlog desktop app. Specify target_id when the meeting has multiple summaries.",
+      "description": "WRITES a pending proposal row (requires `anarlog mcp --allow-writes`); never edits the meeting itself. Propose a complete summary replacement. The proposal stays pending until a human applies it in the Anarlog desktop app. Specify target_id when the meeting has multiple summaries.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "properties": {
@@ -1817,6 +2530,204 @@ expression: "canonicalize_json(serde_json::json!({\n    \"protocol_version\": in
         "type": "object"
       },
       "title": "Propose summary edit"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Full-text search over this computer's local Anarlog database: meeting titles, typed notes, enhanced notes, summaries and transcript text. Every word of the query must appear somewhere in a meeting; wrap a phrase in double quotes. Returns meeting id, title, date and snippets (transcript snippets carry an mm:ss time), newest first, paginated. Read-only; no network and no model.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "folder_path": {
+            "default": null,
+            "description": "Only search meetings in this folder path and its subfolders",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Maximum meetings; defaults to 10 and is capped at 50",
+            "format": "uint32",
+            "maximum": 50,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "offset": {
+            "description": "Number of matching meetings to skip; defaults to 0",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "query": {
+            "description": "Words to find. Every word must appear somewhere in the meeting (title, typed notes, enhanced notes, summaries or transcript). Wrap a phrase in double quotes to match it exactly.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "search_meetings",
+      "outputSchema": {
+        "$defs": {
+          "Pagination": {
+            "properties": {
+              "limit": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "next_offset": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "offset": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "returned": {
+                "format": "uint",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "total": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "offset",
+              "limit",
+              "returned"
+            ],
+            "type": "object"
+          },
+          "SearchHit": {
+            "properties": {
+              "date": {
+                "description": "Meeting start, or its creation time when it has no start.",
+                "type": "string"
+              },
+              "folder_path": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "meeting_id": {
+                "type": "string"
+              },
+              "snippets": {
+                "items": {
+                  "$ref": "#/$defs/SearchSnippet"
+                },
+                "type": "array"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "meeting_id",
+              "title",
+              "date",
+              "snippets"
+            ],
+            "type": "object"
+          },
+          "SearchSnippet": {
+            "properties": {
+              "document_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source": {
+                "description": "`title`, `typed_notes`, `enhanced_notes`, `summary`, `transcript` or the\ndocument kind for any other document.",
+                "type": "string"
+              },
+              "start_ms": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "text": {
+                "type": "string"
+              },
+              "time": {
+                "description": "`mm:ss` of the matching transcript word (transcript snippets only).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "transcript_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "source",
+              "text"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "hits": {
+            "items": {
+              "$ref": "#/$defs/SearchHit"
+            },
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/$defs/Pagination"
+          },
+          "query": {
+            "type": "string"
+          },
+          "scan_truncated": {
+            "description": "True when the bounded scan stopped before inspecting every candidate;\nnarrow the query or folder to see older matches.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query",
+          "hits",
+          "pagination",
+          "scan_truncated"
+        ],
+        "title": "SearchPage",
+        "type": "object"
+      },
+      "title": "Search meetings"
     }
   ]
 }

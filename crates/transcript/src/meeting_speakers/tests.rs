@@ -79,12 +79,32 @@ fn call(
     heard_until: i64,
     ends_at: Option<i64>,
 ) -> MeetingSpeakerEvidence {
+    call_lagged(
+        source,
+        platform,
+        roster_at,
+        turns,
+        heard_until,
+        ends_at,
+        LAG,
+    )
+}
+
+fn call_lagged(
+    source: ObservationSource,
+    platform: CallPlatform,
+    roster_at: impl Fn(i64) -> (Vec<ObservedParticipant>, Option<u32>),
+    turns: &[(i64, Option<ObservedParticipant>)],
+    heard_until: i64,
+    ends_at: Option<i64>,
+    lag: i64,
+) -> MeetingSpeakerEvidence {
     let mut evidence = MeetingSpeakerEvidence::new(CAPTURE, T0);
     let mut events = (0..=heard_until)
         .step_by(5_000)
         .map(|ms| (ms, None))
         .collect::<Vec<_>>();
-    events.extend(turns.iter().map(|(ms, who)| (ms + LAG, Some(who.clone()))));
+    events.extend(turns.iter().map(|(ms, who)| (ms + lag, Some(who.clone()))));
     events.sort_by_key(|(ms, _)| *ms);
     for (ms, turn) in events.into_iter().filter(|(ms, _)| *ms <= heard_until) {
         let speaking = turn.map(|who| {
@@ -326,25 +346,25 @@ fn nothing_holds_after_the_reader_was_last_heard_from() {
 }
 
 #[test]
-fn only_meets_extension_cues_count_as_speaking_signals() {
+fn only_meet_zoom_and_teams_cues_count_as_speaking_signals() {
     let turns = [(0, Some(alice())), (20_000, Some(bob()))];
     let words = [speech(1, 0, 20_000), speech(2, 20_000, 40_000)].concat();
     assert_eq!(named(&meet(three_way, &turns, 40_000), &words).len(), 2);
-    for source in [
-        ObservationSource::Accessibility,
-        ObservationSource::BrowserExtension,
-    ] {
-        for platform in [
-            CallPlatform::Zoom,
+    // Webex has no speaking signal from any source; the browser extension reads Meet alone.
+    for (source, platform) in [
+        (ObservationSource::Accessibility, CallPlatform::Webex),
+        (ObservationSource::BrowserExtension, CallPlatform::Webex),
+        (ObservationSource::BrowserExtension, CallPlatform::Zoom),
+        (
+            ObservationSource::BrowserExtension,
             CallPlatform::MicrosoftTeams,
-            CallPlatform::Webex,
-        ] {
-            let evidence = call(source, platform, three_way, &turns, 40_000, Some(40_000));
-            assert!(
-                named(&evidence, &words).is_empty(),
-                "{source:?} {platform:?}"
-            );
-        }
+        ),
+    ] {
+        let evidence = call(source, platform, three_way, &turns, 40_000, Some(40_000));
+        assert!(
+            named(&evidence, &words).is_empty(),
+            "{source:?} {platform:?}"
+        );
     }
     let read_by_accessibility = call(
         ObservationSource::Accessibility,
@@ -355,6 +375,80 @@ fn only_meets_extension_cues_count_as_speaking_signals() {
         Some(40_000),
     );
     assert!(named(&read_by_accessibility, &words).is_empty());
+}
+
+#[test]
+fn zoom_and_teams_accessibility_cues_name_voices_with_their_own_lag() {
+    let turns = [(0, Some(alice())), (20_000, Some(bob()))];
+    let words = [speech(1, 0, 20_000), speech(2, 20_000, 40_000)].concat();
+    for (platform, lag) in [
+        (CallPlatform::Zoom, ZOOM_CUE_DELAY_MS),
+        (CallPlatform::MicrosoftTeams, TEAMS_CUE_DELAY_MS),
+    ] {
+        let evidence = call_lagged(
+            ObservationSource::Accessibility,
+            platform,
+            three_way,
+            &turns,
+            40_000,
+            Some(40_000),
+            lag,
+        );
+        assert_eq!(
+            named(&evidence, &words),
+            names(&[(1, "Alice Kim"), (2, "Bob Lee")]),
+            "{platform:?}"
+        );
+    }
+    assert!(ZOOM_CUE_DELAY_MS != MEET_CUE_DELAY_MS && TEAMS_CUE_DELAY_MS != ZOOM_CUE_DELAY_MS);
+}
+
+#[test]
+fn a_lag_constant_shifts_cues_back_so_a_quick_turn_is_still_named() {
+    // Bob speaks 10..13 s. With the right lag Bob's cue lands 1.5 s late; with Meet's lag
+    // the Teams cue would blur into Alice's turn.
+    let turns = [
+        (0, Some(alice())),
+        (10_000, Some(bob())),
+        (13_000, Some(alice())),
+    ];
+    let words = [
+        speech(1, 0, 10_000),
+        speech(2, 10_000, 13_000),
+        speech(1, 13_000, 30_000),
+    ]
+    .concat();
+    let teams = call_lagged(
+        ObservationSource::Accessibility,
+        CallPlatform::MicrosoftTeams,
+        three_way,
+        &turns,
+        30_000,
+        Some(30_000),
+        TEAMS_CUE_DELAY_MS,
+    );
+    assert_eq!(
+        named(&teams, &words),
+        names(&[(1, "Alice Kim"), (2, "Bob Lee")])
+    );
+}
+
+#[test]
+fn a_silent_accessibility_reader_gives_zoom_no_cues() {
+    // Absent `speaking` (the helper saw no speaking state) is never "nobody": no cue is stored.
+    let mut evidence = MeetingSpeakerEvidence::new(CAPTURE, T0);
+    for second in 0..=30 {
+        evidence.observe(&observation(
+            ObservationSource::Accessibility,
+            CallPlatform::Zoom,
+            second * 1_000,
+            three_way(0),
+            false,
+            None,
+        ));
+    }
+    evidence.close(instant(30_000));
+    assert!(evidence.native.unwrap().cues.is_empty());
 }
 
 #[test]
@@ -420,6 +514,17 @@ fn a_complete_webex_roster_alone_names_a_one_on_one() {
         names(&[(1, "Sam Park")])
     );
     let twin = row("w/twin", "Sam Park", Some(false));
+    for platform in [CallPlatform::Zoom, CallPlatform::MicrosoftTeams] {
+        assert_eq!(
+            webex_call(solo.clone(), true, platform, none),
+            names(&[(1, "Sam Park")]),
+            "{platform:?}"
+        );
+        assert!(
+            webex_call(solo.clone(), false, platform, none).is_empty(),
+            "{platform:?} incomplete"
+        );
+    }
     for (case, roster, complete, platform) in [
         (
             "no count",
@@ -452,7 +557,6 @@ fn a_complete_webex_roster_alone_names_a_one_on_one() {
             true,
             CallPlatform::Webex,
         ),
-        ("unqualified app", solo.clone(), true, CallPlatform::Zoom),
         (
             "Meet, read by the extension",
             solo.clone(),
@@ -982,4 +1086,66 @@ fn identity_assignment_types_stay_unchanged_by_meeting_names() {
         &[],
     );
     assert!(segments.iter().all(|s| s.key.speaker_human_id.is_none()));
+}
+
+#[test]
+fn meeting_cluster_votes_rekey_named_voices_by_cluster() {
+    use crate::speaker_context::attendees::{ClusterWord, meeting_cluster_votes};
+    use anlg_voiceprint::VoiceprintSpeakerKey;
+
+    let cluster = |index: i64| VoiceprintSpeakerKey {
+        channel: 1,
+        speaker_index: Some(index),
+    };
+    // Alice and Bob take turns for two minutes; the diarizer calls them clusters 1 and 2.
+    let mut turns = Vec::new();
+    let mut words = Vec::new();
+    for turn in 0..40i64 {
+        let (index, who) = if turn % 2 == 0 {
+            (1, alice())
+        } else {
+            (2, bob())
+        };
+        let from = turn * 3_000;
+        turns.push((from, Some(who)));
+        for voiced in speech(index as i32, from + 500, from + 2_900) {
+            words.push(ClusterWord {
+                cluster: cluster(index),
+                start_ms: voiced.start_ms,
+                end_ms: voiced.end_ms,
+            });
+        }
+    }
+    // A third cluster speaks once, too briefly to be named.
+    words.push(ClusterWord {
+        cluster: cluster(3),
+        start_ms: 200_000,
+        end_ms: 200_300,
+    });
+    let evidence = meet(three_way, &turns, 130_000);
+
+    // The transcript starts when the capture does (T0).
+    let votes = meeting_cluster_votes(std::slice::from_ref(&evidence), &[T0], T0, &words);
+    let by_cluster: BTreeMap<i64, (String, i64)> = votes
+        .iter()
+        .map(|vote| {
+            (
+                vote.cluster.speaker_index.unwrap(),
+                (vote.name.clone(), vote.ms),
+            )
+        })
+        .collect();
+    assert_eq!(by_cluster.len(), 2, "{votes:?}");
+    assert_eq!(by_cluster[&1].0, "Alice Kim");
+    assert_eq!(by_cluster[&2].0, "Bob Lee");
+    assert!(by_cluster[&1].1 > 10_000 && by_cluster[&2].1 > 10_000);
+
+    // No evidence or no words: no votes.
+    assert!(meeting_cluster_votes(&[], &[T0], T0, &words).is_empty());
+    assert!(meeting_cluster_votes(std::slice::from_ref(&evidence), &[T0], T0, &[]).is_empty());
+    // Words recorded before the capture began are nobody's.
+    assert!(
+        meeting_cluster_votes(std::slice::from_ref(&evidence), &[T0], T0 - 10_000_000, &words)
+            .is_empty()
+    );
 }

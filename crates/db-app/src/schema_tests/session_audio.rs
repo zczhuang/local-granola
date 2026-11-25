@@ -42,11 +42,13 @@ async fn session_audio_retention_skips_sessions_still_owned_by_capture_or_transc
                 session_id: "idle".into(),
                 created_at_ms: Some(1_767_225_600_000),
                 has_words: true,
+                transcript_complete: false,
             },
             SessionAudioRetentionCandidate {
                 session_id: "no-words".into(),
                 created_at_ms: None,
                 has_words: false,
+                transcript_complete: false,
             },
         ]
     );
@@ -107,4 +109,40 @@ async fn logically_deleted_session_audio_is_listed_until_marked_absent() {
             .await
             .unwrap()
     );
+}
+
+#[tokio::test]
+async fn completed_transcription_without_words_counts_as_processed_and_complete() {
+    let db = test_db().await;
+    let pool = db.pool();
+    sqlx::raw_sql(
+        r#"INSERT INTO sessions (id, created_at) VALUES
+             ('silent', '2026-01-01T00:00:00.000Z'),
+             ('pending', '2026-01-01T00:00:00.000Z');
+           INSERT INTO session_attachments (
+             id, session_id, source_type, source_id, metadata_json, deleted_at
+           ) VALUES
+             ('session-audio:silent', 'silent', 'session_audio', 'primary',
+              '{"transcript_status":"complete"}', NULL),
+             ('session-audio:pending', 'pending', 'session_audio', 'primary',
+              '{"transcript_status":"pending"}', NULL);"#,
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+
+    let silent = get_session_audio_retention_candidate(pool, "silent")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(!silent.has_words);
+    assert!(silent.transcript_complete);
+    let pending = get_session_audio_retention_candidate(pool, "pending")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(!pending.transcript_complete);
+
+    assert!(session_audio_is_processed(pool, "silent").await.unwrap());
+    assert!(!session_audio_is_processed(pool, "pending").await.unwrap());
 }

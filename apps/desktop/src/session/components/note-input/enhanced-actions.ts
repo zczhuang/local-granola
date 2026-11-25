@@ -15,6 +15,7 @@ import { getEligibility } from "~/services/enhancer/eligibility";
 import { loadSessionContentSnapshot } from "~/session/content-queries";
 import { useEnhancedNote } from "~/session/queries";
 import { createTaskId } from "~/store/zustand/ai-task/task-configs";
+import { shouldEnhanceLocally } from "~/store/zustand/ai-task/task-configs/local-route";
 
 export function useEnhancedNoteActions({
   enhancedNoteId,
@@ -77,6 +78,7 @@ export function useEnhancedNoteActions({
       if (!note) {
         await getEnhancerService()?.enhance(sessionId, {
           templateId: templateId ?? noteTemplateId,
+          ...(shouldEnhanceLocally() ? { regenerate: true } : {}),
         });
         return;
       }
@@ -87,6 +89,8 @@ export function useEnhancedNoteActions({
           sessionId,
           enhancedNoteId,
           templateId: templateId ?? noteTemplateId,
+          // LOCAL-GRANOLA: "Regenerate" discards manual edits to AI lines.
+          ...(shouldEnhanceLocally() ? { regenerate: true } : {}),
         },
       });
     },
