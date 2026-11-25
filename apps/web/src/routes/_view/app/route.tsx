@@ -1,0 +1,68 @@
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+
+import { fetchUser } from "@/functions/auth";
+import { useMountEffect } from "@/hooks/useMountEffect";
+import { setErrorReportingUser } from "@/lib/error-reporting";
+import { isDesktopIntegrationHandoff } from "@/lib/integration-handoff";
+import { signInRedirectSearch } from "@/lib/sign-in-redirect";
+
+export const Route = createFileRoute("/_view/app")({
+  head: () => ({
+    meta: [{ name: "robots", content: "noindex, nofollow" }],
+  }),
+  beforeLoad: async ({ location }) => {
+    if (location.pathname.replace(/\/$/, "") === "/app/google-drive-picker") {
+      return { user: null };
+    }
+    if (
+      isDesktopIntegrationHandoff({
+        pathname: location.pathname,
+        search: location.search as Record<string, unknown>,
+      })
+    ) {
+      return { user: null };
+    }
+
+    const user = await fetchUser();
+    if (!user) {
+      throw redirect({
+        to: "/auth/",
+        search: signInRedirectSearch(
+          location.pathname,
+          location.search as Record<string, unknown>,
+        ),
+      });
+    }
+    return { user };
+  },
+  component: AppRoute,
+});
+
+function AppRoute() {
+  const { user } = Route.useRouteContext();
+
+  if (!user) {
+    return <Outlet />;
+  }
+
+  return (
+    <ErrorReportingIdentity key={user.id} userId={user.id}>
+      <Outlet />
+    </ErrorReportingIdentity>
+  );
+}
+
+function ErrorReportingIdentity({
+  children,
+  userId,
+}: {
+  children: React.ReactNode;
+  userId: string;
+}) {
+  useMountEffect(() => {
+    setErrorReportingUser(userId);
+    return () => setErrorReportingUser(null);
+  });
+
+  return children;
+}

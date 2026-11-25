@@ -1,0 +1,41 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Origin: Anarlog
+Label: Anarlog
+Suite: stable
+Codename: stable
+Version: 1.4.35
+Date: Sun, 15 Nov 2026 20:38:36 GMT
+Architectures: amd64 arm64
+Components: main
+Description: Anarlog stable desktop releases
+MD5Sum:
+ 9f7c0c3ce09699116ac0d64b85bd9161 638 main/binary-amd64/Packages
+ fe1ba409cec4559e986b80bff1301900 431 main/binary-amd64/Packages.gz
+ 9b95014560aceb1d3b11be09c5fd7156 638 main/binary-arm64/Packages
+ 22da01aa54229461444053ecf8bef3e1 432 main/binary-arm64/Packages.gz
+SHA1:
+ e6157520fe1cf5b8cbbbe2b23eb48b3fbefc5c47 638 main/binary-amd64/Packages
+ feaa464db7d5872101ede5bc4f4e0db8d6bbe372 431 main/binary-amd64/Packages.gz
+ e2c54c701820fffa954b13282035d4a824810598 638 main/binary-arm64/Packages
+ 0737cebe5d92e8a5e30004ed7d9727293b919071 432 main/binary-arm64/Packages.gz
+SHA256:
+ 0e014fef621277c2f8b66fe9bfdffc168e966a6f7f74313b7f8676060375cd25 638 main/binary-amd64/Packages
+ 960d4dcb81d161c194add55c5924a1a7c1799e4ea30d5f14b9464cee2524c1d9 431 main/binary-amd64/Packages.gz
+ 3227e164960e2e36181c0fc661d197287689fda38d2ce4f59ac2b8a7dc2963da 638 main/binary-arm64/Packages
+ b9e8a0c4184bb3c4d8d93da4ae9e7d229a9325992c4d763a531d1f4b09e963a8 432 main/binary-arm64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iQGzBAEBCgAdFiEEJ1B7jKGV92hWmxTHGO3nP4OmCy0FAmr6GM0ACgkQGO3nP4Om
+Cy3lAAv9Fue6TX/pLp8OQTST23dfA8DN35Ybc0ZtoAk1+nL0GzUFpjMG0EVozdk4
+3hGORUftKJ7shr7yB6bKUPStF8CK2RsK6SwrAkLKkjFRXHchn/MvbUQbdLxC3JA+
+tvixhLIMAHb2VpkXMs46WADonytxyBWcanMZaHRcpa/ojOWYKyWid0sL3n5xGRnO
+DhBhRI55b/XSQvzifUfu2OhX7G6uFZd3nMvA/tIV8uw3o9Kh+9o7AMDhZy+2X8pK
+y4lTbDiB5Zkikend428xedfBSbW5jciVxg6SbJuRmy92Z8NqGvyXRplPEv22+2a5
+FnuP7Muv6R6CJ9KN7rd38BSY/3N4LJ/1lcqPnfN3DNefFI9R/PrERPBZjfNhl8fb
+EZ4JuYEvHifftbL+Ds69859JIubnCHuhwv2Po78EhIVdoITPGeLwehfJdMrYdIBo
+UIRsZ+1N2yJhBLtn6NJMsbAi7jv/E5ORO7Gr52+bDKemv2gJz2PhWJ2IK2B2jIe3
+1KhUe5DU
+=F58W
+-----END PGP SIGNATURE-----

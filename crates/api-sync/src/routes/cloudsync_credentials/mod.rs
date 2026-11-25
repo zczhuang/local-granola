@@ -1,0 +1,549 @@
+use anlg_api_auth::AuthContext;
+use axum::{
+    Extension, Json, Router,
+    extract::{Path, State},
+    http::{HeaderMap, HeaderValue, header},
+    routing::{get, patch, post, put},
+};
+use chrono::{SecondsFormat, TimeDelta, Utc};
+use serde::{Deserialize, Serialize};
+use utoipa::OpenApi;
+
+use crate::{
+    error::{Result, SyncError},
+    state::{AppState, ReplicaState},
+};
+
+mod enrollment;
+mod grants;
+mod identity;
+mod meeting_presence;
+mod projection;
+mod transport;
+
+use enrollment::{
+    __path_consume_e2ee_device_enrollment, __path_register_e2ee_device_enrollment,
+    __path_seal_e2ee_device_enrollment, ConsumeE2eeDeviceEnrollmentRequest,
+    E2eeDeviceEnrollmentPackage, E2eeDeviceEnrollmentSummary, RegisterE2eeDeviceEnrollmentRequest,
+    RegisterE2eeDeviceEnrollmentResponse, consume_e2ee_device_enrollment,
+    list_e2ee_device_enrollments, register_e2ee_device_enrollment, seal_e2ee_device_enrollment,
+};
+use grants::{
+    SetWorkspaceE2eeKeyRequest, SetWorkspaceE2eeKeyResult, WorkspaceE2eeKeyRecipient,
+    fetch_workspace_key_recipients, publish_workspace_e2ee_key,
+};
+use grants::{WorkspaceE2eeKeyGrant, fetch_workspace_key_grants};
+use identity::{
+    SyncDeviceRow, claim_personal_e2ee_key, claim_sync_device, fetch_sync_device_limit,
+    is_valid_e2ee_key_id, list_sync_devices, publish_e2ee_member_identity, remove_sync_device,
+    rename_sync_device,
+};
+use meeting_presence::{
+    __path_heartbeat_meeting_device, MeetingDevice, MeetingDeviceHeartbeatRequest,
+    MeetingDeviceIntent, MeetingDevicesResponse, heartbeat_meeting_device,
+};
+pub use projection::CloudsyncWorkspace;
+use projection::{fetch_workspace_projection, validate_workspace_projection};
+use transport::{client_accepts_replica_transport, client_runs_accepted_replica};
+
+#[cfg(test)]
+pub(super) use identity::{DEVICE_FINGERPRINT_HEADER, DEVICE_NAME_HEADER};
+#[cfg(test)]
+pub(super) use projection::WORKSPACE_PROJECTION_SELECT;
+#[cfg(test)]
+pub(super) use transport::{ACCEPTED_REPLICA_TRANSPORT, CLOUDSYNC_TRANSPORTS_HEADER};
+
+const SUPABASE_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const CLOUDSYNC_ENCRYPTION_VERSION: u8 = 2;
+const REPLICA_CREDENTIAL_TTL_SECONDS: u64 = 15 * 60;
+pub(super) const E2EE_KEY_ID_HEADER: &str = "x-anarlog-e2ee-key-id";
+pub(super) use identity::E2EE_MEMBER_PUBLIC_KEY_HEADER;
+
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplicaCredentials {
+    transport: &'static str,
+    encryption_version: u8,
+    encryption_key_id: String,
+    expires_at: String,
+    workspace_id: String,
+    account_user_id: String,
+    personal_workspace_id: String,
+    workspaces: Vec<CloudsyncWorkspace>,
+    workspace_key_grants: Vec<WorkspaceE2eeKeyGrant>,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ClaimE2eeIdentityRequest {
+    key_id: String,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct E2eeIdentity {
+    key_id: String,
+}
+
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        create_credentials,
+        create_replica_credentials,
+        claim_e2ee_identity,
+        get_devices,
+        patch_device,
+        delete_device,
+        register_e2ee_device_enrollment,
+        seal_e2ee_device_enrollment,
+        consume_e2ee_device_enrollment,
+        heartbeat_meeting_device,
+        get_workspace_e2ee_key_recipients,
+        set_workspace_e2ee_key
+    ),
+    components(schemas(
+        CloudsyncWorkspace,
+        WorkspaceE2eeKeyGrant,
+        WorkspaceE2eeKeyRecipient,
+        SetWorkspaceE2eeKeyRequest,
+        SetWorkspaceE2eeKeyResult,
+        ClaimE2eeIdentityRequest,
+        E2eeIdentity,
+        RenameSyncDeviceRequest,
+        SyncDevicesResponse,
+        SyncDeviceRow,
+        E2eeDeviceEnrollmentSummary,
+        E2eeDeviceEnrollmentPackage,
+        RegisterE2eeDeviceEnrollmentRequest,
+        RegisterE2eeDeviceEnrollmentResponse,
+        ConsumeE2eeDeviceEnrollmentRequest,
+        MeetingDeviceHeartbeatRequest,
+        MeetingDeviceIntent,
+        MeetingDevice,
+        MeetingDevicesResponse,
+        ReplicaCredentials
+    ))
+)]
+pub struct ApiDoc;
+
+pub(super) fn openapi() -> utoipa::openapi::OpenApi {
+    ApiDoc::openapi()
+}
+
+pub(super) fn router() -> Router<AppState> {
+    Router::new().route("/token", post(create_credentials))
+}
+
+pub(super) fn replica_router() -> Router<ReplicaState> {
+    Router::new()
+        .route("/replica/credentials", post(create_replica_credentials))
+        .route("/e2ee/identity", put(claim_e2ee_identity))
+        .route(
+            "/e2ee/workspaces/{workspace_id}/recipients",
+            get(get_workspace_e2ee_key_recipients),
+        )
+        .route(
+            "/e2ee/workspaces/{workspace_id}/key",
+            put(set_workspace_e2ee_key),
+        )
+}
+
+pub(super) fn device_router() -> Router<ReplicaState> {
+    Router::new()
+        .route("/devices", get(get_devices))
+        .route(
+            "/devices/{fingerprint}",
+            patch(patch_device).delete(delete_device),
+        )
+        .route(
+            "/e2ee/device-enrollments",
+            post(register_e2ee_device_enrollment),
+        )
+        .route(
+            "/e2ee/device-enrollments/{request_id}/seal",
+            post(seal_e2ee_device_enrollment),
+        )
+        .route(
+            "/e2ee/device-enrollments/{request_id}/consume",
+            post(consume_e2ee_device_enrollment),
+        )
+        .route(
+            "/meetings/{meeting_key}/devices",
+            post(heartbeat_meeting_device),
+        )
+}
+
+#[utoipa::path(
+    get,
+    path = "/e2ee/workspaces/{workspace_id}/recipients",
+    tag = "sync",
+    params(("workspace_id" = String, Path, description = "Shared workspace ID")),
+    responses(
+        (status = 200, description = "Active workspace key recipients", body = [WorkspaceE2eeKeyRecipient]),
+        (status = 400, description = "Invalid workspace ID"),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Workspace manager access required"),
+        (status = 502, description = "Workspace key service unavailable")
+    )
+)]
+async fn get_workspace_e2ee_key_recipients(
+    Extension(auth): Extension<AuthContext>,
+    State(state): State<ReplicaState>,
+    Path(workspace_id): Path<String>,
+) -> Result<Json<Vec<WorkspaceE2eeKeyRecipient>>> {
+    if !auth.claims.is_pro() {
+        return Err(SyncError::ProPlanRequired);
+    }
+    Ok(Json(
+        fetch_workspace_key_recipients(&state, &auth.token, &workspace_id).await?,
+    ))
+}
+
+#[utoipa::path(
+    put,
+    path = "/e2ee/workspaces/{workspace_id}/key",
+    tag = "sync",
+    params(("workspace_id" = String, Path, description = "Shared workspace ID")),
+    request_body = SetWorkspaceE2eeKeyRequest,
+    responses(
+        (status = 200, description = "Wrapped workspace key published", body = SetWorkspaceE2eeKeyResult),
+        (status = 400, description = "Invalid workspace key grants"),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Workspace manager access required"),
+        (status = 502, description = "Workspace key service unavailable")
+    )
+)]
+async fn set_workspace_e2ee_key(
+    Extension(auth): Extension<AuthContext>,
+    State(state): State<ReplicaState>,
+    Path(workspace_id): Path<String>,
+    Json(request): Json<SetWorkspaceE2eeKeyRequest>,
+) -> Result<(
+    [(header::HeaderName, HeaderValue); 1],
+    Json<SetWorkspaceE2eeKeyResult>,
+)> {
+    if !auth.claims.is_pro() {
+        return Err(SyncError::ProPlanRequired);
+    }
+    Ok((
+        [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
+        Json(publish_workspace_e2ee_key(&state, &auth.token, &workspace_id, request).await?),
+    ))
+}
+
+#[utoipa::path(
+    post,
+    path = "/replica/credentials",
+    tag = "sync",
+    params(
+        ("x-anarlog-e2ee-key-id" = String, Header, description = "Local recovery-key identity"),
+        ("x-anarlog-e2ee-member-public-key" = Option<String>, Header, description = "Account-level member identity public key"),
+        ("x-anarlog-cloudsync-transports" = Option<String>, Header, description = "Comma-separated transports the client accepts; `accepted_replica` is required")
+    ),
+    responses(
+        (status = 200, description = "Encrypted replica credentials", body = ReplicaCredentials),
+        (status = 400, description = "Invalid E2EE key identity"),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Anarlog Pro subscription required"),
+        (status = 409, description = "Account already uses a different recovery key"),
+        (status = 426, description = "Client predates the accepted replica"),
+        (status = 502, description = "Replica credential service unavailable")
+    )
+)]
+async fn create_replica_credentials(
+    Extension(auth): Extension<AuthContext>,
+    State(state): State<ReplicaState>,
+    headers: HeaderMap,
+) -> Result<(
+    [(header::HeaderName, HeaderValue); 1],
+    Json<ReplicaCredentials>,
+)> {
+    if !auth.claims.is_pro() {
+        return Err(SyncError::ProPlanRequired);
+    }
+    // Builds that predate `accepted_replica` bundle sqlite-sync 1.2.0, whose
+    // license does not cover syncing without SQLite Cloud, so they are told
+    // to update (ANLG-554).
+    if !client_runs_accepted_replica(&headers) {
+        tracing::info!(
+            anarlog.operation = "replica_credentials.retired.upgrade_required",
+            "replica_credentials_refused"
+        );
+        return Err(SyncError::CloudsyncUpgradeRequired);
+    }
+
+    publish_requested_member_identity(&state, &auth, &headers).await?;
+    let requested_key_id = headers
+        .get(E2EE_KEY_ID_HEADER)
+        .ok_or_else(|| SyncError::BadRequest("E2EE key identity is required".to_string()))?
+        .to_str()
+        .map_err(|_| SyncError::BadRequest("E2EE key identity is invalid".to_string()))?;
+    let credentials = issue_replica_credentials(&state, auth, requested_key_id, &headers).await?;
+
+    Ok((
+        [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
+        Json(credentials),
+    ))
+}
+
+async fn issue_replica_credentials(
+    state: &ReplicaState,
+    auth: AuthContext,
+    requested_key_id: &str,
+    headers: &HeaderMap,
+) -> Result<ReplicaCredentials> {
+    let workspace_rows = fetch_workspace_projection(state, &auth).await?;
+    let (personal_workspace_id, workspaces) =
+        validate_workspace_projection(workspace_rows, &auth.claims.sub)?;
+    let workspace_key_grants = fetch_workspace_key_grants(state, &auth.token, &workspaces).await?;
+    let encryption_key_id =
+        claim_personal_e2ee_key(state, &auth.claims.sub, requested_key_id).await?;
+    claim_sync_device(state, &auth.claims.sub, headers).await?;
+    let expires_at = token_expiry(REPLICA_CREDENTIAL_TTL_SECONDS)?;
+
+    Ok(ReplicaCredentials {
+        transport: "replica",
+        encryption_version: CLOUDSYNC_ENCRYPTION_VERSION,
+        encryption_key_id,
+        expires_at,
+        workspace_id: personal_workspace_id.clone(),
+        account_user_id: auth.claims.sub,
+        personal_workspace_id,
+        workspaces,
+        workspace_key_grants,
+    })
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncDevicesResponse {
+    devices: Vec<SyncDeviceRow>,
+    pending_devices: Vec<E2eeDeviceEnrollmentSummary>,
+    max_devices: u8,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RenameSyncDeviceRequest {
+    device_name: String,
+}
+
+#[utoipa::path(
+    get,
+    path = "/devices",
+    tag = "sync",
+    responses(
+        (status = 200, description = "Approved and pending sync devices", body = SyncDevicesResponse),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Anarlog Pro subscription required"),
+        (status = 502, description = "Device service unavailable")
+    )
+)]
+async fn get_devices(
+    Extension(auth): Extension<AuthContext>,
+    State(state): State<ReplicaState>,
+) -> Result<Json<SyncDevicesResponse>> {
+    if !auth.claims.is_pro() {
+        return Err(SyncError::ProPlanRequired);
+    }
+    let (devices, pending_devices, max_devices) = tokio::try_join!(
+        list_sync_devices(&state, &auth.claims.sub),
+        list_e2ee_device_enrollments(&state, &auth.claims.sub),
+        fetch_sync_device_limit(&state, &auth.claims.sub),
+    )?;
+    Ok(Json(SyncDevicesResponse {
+        devices,
+        pending_devices,
+        max_devices,
+    }))
+}
+
+#[utoipa::path(
+    patch,
+    path = "/devices/{fingerprint}",
+    tag = "sync",
+    params(("fingerprint" = String, Path, description = "Device fingerprint")),
+    request_body = RenameSyncDeviceRequest,
+    responses(
+        (status = 204, description = "Device renamed"),
+        (status = 400, description = "Invalid device fingerprint or name"),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Anarlog Pro subscription required"),
+        (status = 502, description = "Device service unavailable")
+    )
+)]
+async fn patch_device(
+    Extension(auth): Extension<AuthContext>,
+    State(state): State<ReplicaState>,
+    Path(fingerprint): Path<String>,
+    Json(request): Json<RenameSyncDeviceRequest>,
+) -> Result<axum::http::StatusCode> {
+    if !auth.claims.is_pro() {
+        return Err(SyncError::ProPlanRequired);
+    }
+    rename_sync_device(&state, &auth.claims.sub, &fingerprint, &request.device_name).await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+#[utoipa::path(
+    delete,
+    path = "/devices/{fingerprint}",
+    tag = "sync",
+    params(("fingerprint" = String, Path, description = "Device fingerprint")),
+    responses(
+        (status = 204, description = "Device removed"),
+        (status = 400, description = "Invalid device fingerprint"),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Anarlog Pro subscription required"),
+        (status = 502, description = "Device service unavailable")
+    )
+)]
+async fn delete_device(
+    Extension(auth): Extension<AuthContext>,
+    State(state): State<ReplicaState>,
+    Path(fingerprint): Path<String>,
+) -> Result<axum::http::StatusCode> {
+    if !auth.claims.is_pro() {
+        return Err(SyncError::ProPlanRequired);
+    }
+    remove_sync_device(&state, &auth.claims.sub, &fingerprint).await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+#[utoipa::path(
+    put,
+    path = "/e2ee/identity",
+    tag = "sync",
+    request_body = ClaimE2eeIdentityRequest,
+    responses(
+        (status = 200, description = "E2EE recovery-key identity claimed", body = E2eeIdentity),
+        (status = 400, description = "Invalid E2EE key identity"),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Anarlog Pro subscription required"),
+        (status = 409, description = "Account already uses a different recovery key"),
+        (status = 502, description = "E2EE identity service unavailable")
+    )
+)]
+async fn claim_e2ee_identity(
+    Extension(auth): Extension<AuthContext>,
+    State(state): State<ReplicaState>,
+    Json(request): Json<ClaimE2eeIdentityRequest>,
+) -> Result<([(header::HeaderName, HeaderValue); 1], Json<E2eeIdentity>)> {
+    if !auth.claims.is_pro() {
+        return Err(SyncError::ProPlanRequired);
+    }
+
+    let key_id = claim_personal_e2ee_key(&state, &auth.claims.sub, &request.key_id).await?;
+    Ok((
+        [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
+        Json(E2eeIdentity { key_id }),
+    ))
+}
+
+#[utoipa::path(
+    post,
+    path = "/token",
+    tag = "sync",
+    params(
+        ("x-anarlog-e2ee-key-id" = Option<String>, Header, description = "Local recovery-key identity"),
+        ("x-anarlog-e2ee-member-public-key" = Option<String>, Header, description = "Account-level member identity public key"),
+        ("x-anarlog-cloudsync-transports" = Option<String>, Header, description = "Comma-separated transports the client accepts; `accepted_replica` is required")
+    ),
+    responses(
+        (status = 200, description = "Encrypted replica credentials", body = ReplicaCredentials),
+        (status = 400, description = "Invalid E2EE key identity"),
+        (status = 401, description = "Authentication required"),
+        (status = 403, description = "Anarlog Pro subscription required"),
+        (status = 409, description = "Account already uses a different recovery key"),
+        (status = 426, description = "Client update required"),
+        (status = 502, description = "Credential service unavailable")
+    )
+)]
+async fn create_credentials(
+    Extension(auth): Extension<AuthContext>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<(
+    [(header::HeaderName, HeaderValue); 1],
+    Json<ReplicaCredentials>,
+)> {
+    if !auth.claims.is_pro() {
+        return Err(SyncError::ProPlanRequired);
+    }
+
+    publish_requested_member_identity(&state.replica, &auth, &headers).await?;
+
+    let requested_key_id = headers
+        .get(E2EE_KEY_ID_HEADER)
+        .map(|value| {
+            value
+                .to_str()
+                .map_err(|_| SyncError::BadRequest("E2EE key identity is invalid".to_string()))
+        })
+        .transpose()?;
+    if requested_key_id.is_some_and(|key_id| !is_valid_e2ee_key_id(key_id)) {
+        return Err(SyncError::BadRequest(
+            "E2EE key identity is invalid".to_string(),
+        ));
+    }
+
+    let Some(requested_key_id) = requested_key_id else {
+        record_token_outcome(&headers, "upgrade_required");
+        return Err(SyncError::CloudsyncUpgradeRequired);
+    };
+    if !client_runs_accepted_replica(&headers) {
+        record_token_outcome(&headers, "upgrade_required");
+        return Err(SyncError::CloudsyncUpgradeRequired);
+    }
+
+    let credentials =
+        issue_replica_credentials(&state.replica, auth, requested_key_id, &headers).await?;
+    record_token_outcome(&headers, "replica");
+    Ok((
+        [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
+        Json(credentials),
+    ))
+}
+
+/// One countable event per `/sync/token` decision. It carries no account or
+/// workspace identity; the request span already scopes it. The decision goes
+/// out as one `anarlog.operation` token because the API's log sanitizer drops
+/// string fields under any key it does not list.
+fn record_token_outcome(headers: &HeaderMap, outcome: &'static str) {
+    let capability = if client_runs_accepted_replica(headers) {
+        "accepted_replica"
+    } else if client_accepts_replica_transport(headers) {
+        "replica"
+    } else {
+        "none"
+    };
+    tracing::info!(
+        anarlog.operation = %format_args!("cloudsync_token.retired.{capability}.{outcome}"),
+        "cloudsync_token_request"
+    );
+}
+
+fn token_expiry(token_ttl_seconds: u64) -> Result<String> {
+    let ttl = i64::try_from(token_ttl_seconds)
+        .map_err(|_| SyncError::Internal("CloudSync token TTL is too large".to_string()))?;
+    let ttl = TimeDelta::try_seconds(ttl)
+        .ok_or_else(|| SyncError::Internal("CloudSync token TTL is too large".to_string()))?;
+    Utc::now()
+        .checked_add_signed(ttl)
+        .ok_or_else(|| SyncError::Internal("CloudSync token expiry is invalid".to_string()))
+        .map(|expiry| expiry.to_rfc3339_opts(SecondsFormat::Secs, true))
+}
+
+async fn publish_requested_member_identity(
+    state: &ReplicaState,
+    auth: &AuthContext,
+    headers: &HeaderMap,
+) -> Result<()> {
+    let Some(public_key) = headers.get(E2EE_MEMBER_PUBLIC_KEY_HEADER) else {
+        return Ok(());
+    };
+    let public_key = public_key
+        .to_str()
+        .map_err(|_| SyncError::BadRequest("E2EE member identity is invalid".to_string()))?;
+    publish_e2ee_member_identity(state, &auth.token, public_key).await
+}

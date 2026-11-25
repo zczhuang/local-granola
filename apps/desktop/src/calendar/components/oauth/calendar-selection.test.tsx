@@ -1,0 +1,232 @@
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  scheduleSync: vi.fn(),
+  calendars: [] as Array<{
+    id: string;
+    name: string;
+    enabled: boolean;
+    source: string;
+    color: string;
+    connection_id: string;
+  }>,
+}));
+
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({
+    invalidateQueries: vi.fn(),
+  }),
+}));
+
+vi.mock("../context", () => ({
+  useSync: () => ({
+    cancelDebouncedSync: vi.fn(),
+    status: "idle",
+    scheduleDebouncedSync: vi.fn(),
+    scheduleSync: mocks.scheduleSync,
+  }),
+}));
+
+vi.mock("~/calendar/queries", () => ({
+  setCalendarEnabled: vi.fn(),
+  useCalendarRows: () => mocks.calendars,
+}));
+
+import { PROVIDERS } from "../shared";
+import {
+  OAuthCalendarSelection,
+  useOAuthCalendarSelection,
+} from "./calendar-selection";
+
+import { setCalendarSyncIssue } from "~/services/calendar/sync-errors";
+
+const GOOGLE_PROVIDER = PROVIDERS.find((provider) => provider.id === "google")!;
+
+function HookHarness() {
+  useOAuthCalendarSelection(GOOGLE_PROVIDER, []);
+  return null;
+}
+
+describe("useOAuthCalendarSelection", () => {
+  afterEach(() => {
+    cleanup();
+    mocks.scheduleSync.mockClear();
+    mocks.calendars = [];
+    setCalendarSyncIssue("outlook:conn-1");
+    setCalendarSyncIssue("outlook:fixture");
+  });
+
+  it("shows the mailbox error on the affected account before calendar discovery and clears it after retry", () => {
+    const provider = PROVIDERS.find((item) => item.id === "outlook")!;
+    const connections = [
+      {
+        integration_id: "outlook",
+        connection_id: "fixture",
+        account_identity: "Work account",
+      },
+    ];
+    function OutlookSelection() {
+      const { groups, handleToggle, handleRefresh, isLoading } =
+        useOAuthCalendarSelection(provider, connections);
+      return (
+        <OAuthCalendarSelection
+          groups={groups}
+          onToggle={handleToggle}
+          onRefresh={handleRefresh}
+          isLoading={isLoading}
+        />
+      );
+    }
+    setCalendarSyncIssue("outlook:fixture", "outlook_mailbox_unavailable");
+    render(<OutlookSelection />);
+    expect(screen.getByText("Work account")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain("Exchange Online");
+    expect(screen.queryByText("No calendars found")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh calendars" }));
+    expect(mocks.scheduleSync).toHaveBeenCalled();
+    act(() => setCalendarSyncIssue("outlook:fixture"));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("No calendars found")).toBeTruthy();
+  });
+
+  it("attaches sync issues to an existing connection group when sourceName differs from account_identity", () => {
+    const provider = PROVIDERS.find((item) => item.id === "outlook")!;
+    mocks.calendars = [
+      {
+        id: "cal-1",
+        name: "Calendar",
+        enabled: true,
+        source: "Alex Rivera",
+        color: "#0078d4",
+        connection_id: "conn-1",
+      },
+    ];
+    const connections = [
+      {
+        integration_id: "outlook",
+        connection_id: "conn-1",
+        account_identity: "alex@example.com",
+      },
+    ];
+    let renderedGroups: ReturnType<typeof useOAuthCalendarSelection>["groups"] =
+      [];
+    function OutlookSelection() {
+      const { groups, handleToggle, handleRefresh, isLoading } =
+        useOAuthCalendarSelection(provider, connections);
+      renderedGroups = groups;
+      return (
+        <OAuthCalendarSelection
+          groups={groups}
+          onToggle={handleToggle}
+          onRefresh={handleRefresh}
+          isLoading={isLoading}
+        />
+      );
+    }
+    setCalendarSyncIssue("outlook:conn-1", "outlook_mailbox_unavailable");
+    render(<OutlookSelection />);
+    expect(renderedGroups).toHaveLength(1);
+    expect(renderedGroups[0]).toMatchObject({
+      id: "conn-1",
+      sourceName: "Alex Rivera",
+      issue: "outlook_mailbox_unavailable",
+    });
+    expect(screen.getByText("Alex Rivera")).toBeTruthy();
+    expect(screen.queryByText("alex@example.com")).toBeNull();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    setCalendarSyncIssue("outlook:conn-1");
+  });
+
+  it("places the sync warning in a separate account group when multiple owner groups share a connection and none match account_identity", () => {
+    const provider = PROVIDERS.find((item) => item.id === "outlook")!;
+    mocks.calendars = [
+      {
+        id: "cal-shared",
+        name: "Appointments",
+        enabled: true,
+        source: "Jordan Lee",
+        color: "#0078d4",
+        connection_id: "conn-1",
+      },
+      {
+        id: "cal-own",
+        name: "Calendar",
+        enabled: true,
+        source: "Alex Rivera",
+        color: "#0078d4",
+        connection_id: "conn-1",
+      },
+    ];
+    const connections = [
+      {
+        integration_id: "outlook",
+        connection_id: "conn-1",
+        account_identity: "alex@example.com",
+      },
+    ];
+    let renderedGroups: ReturnType<typeof useOAuthCalendarSelection>["groups"] =
+      [];
+    function OutlookSelection() {
+      const { groups, handleToggle, handleRefresh, isLoading } =
+        useOAuthCalendarSelection(provider, connections);
+      renderedGroups = groups;
+      return (
+        <OAuthCalendarSelection
+          groups={groups}
+          onToggle={handleToggle}
+          onRefresh={handleRefresh}
+          isLoading={isLoading}
+        />
+      );
+    }
+    setCalendarSyncIssue("outlook:conn-1", "outlook_mailbox_unavailable");
+    render(<OutlookSelection />);
+    expect(
+      renderedGroups.map(({ id, sourceName, issue }) => ({
+        id,
+        sourceName,
+        issue,
+      })),
+    ).toEqual([
+      { id: "conn-1", sourceName: "Jordan Lee", issue: undefined },
+      { id: "conn-1", sourceName: "Alex Rivera", issue: undefined },
+      {
+        id: "conn-1",
+        sourceName: "alex@example.com",
+        issue: "outlook_mailbox_unavailable",
+      },
+    ]);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    setCalendarSyncIssue("outlook:conn-1");
+  });
+
+  it.each([
+    ["still empty", []],
+    [
+      "already present",
+      [
+        {
+          id: "cal-1",
+          name: "Work",
+          enabled: true,
+          source: "user@example.com",
+          color: "#4285f4",
+          connection_id: "conn-1",
+        },
+      ],
+    ],
+  ])("does not sync on mount when calendar rows are %s", (_label, rows) => {
+    mocks.calendars = rows;
+
+    render(<HookHarness />);
+
+    expect(mocks.scheduleSync).not.toHaveBeenCalled();
+  });
+});

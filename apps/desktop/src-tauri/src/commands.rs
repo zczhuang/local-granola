@@ -1,0 +1,212 @@
+use crate::{
+    AppExt,
+    agent_skills::{SkillAgent, SkillAgentStatus},
+    embedded_cli::EmbeddedCliStatus,
+};
+
+const STAGING_BUNDLE_ID: &str = "com.hyprnote.staging";
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_registered_desktop_schemes<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Vec<String> {
+    let Some(desktop) = app
+        .config()
+        .plugins
+        .0
+        .get("deep-link")
+        .and_then(|config| config.get("desktop"))
+    else {
+        return Vec::new();
+    };
+    let protocols = match desktop.as_array() {
+        Some(protocols) => protocols.as_slice(),
+        None => std::slice::from_ref(desktop),
+    };
+    protocols
+        .iter()
+        .filter_map(|protocol| protocol.get("schemes")?.as_array())
+        .flatten()
+        .filter_map(|scheme| scheme.as_str().map(str::to_owned))
+        .collect()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_onboarding_needed<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<bool, String> {
+    app.get_onboarding_needed().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_onboarding_needed<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    v: bool,
+) -> Result<(), String> {
+    app.set_onboarding_needed(v).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_dismissed_toasts<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<Vec<String>, String> {
+    app.get_dismissed_toasts()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_dismissed_toasts<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    v: Vec<String>,
+) -> Result<(), String> {
+    app.set_dismissed_toasts(v)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_env<R: tauri::Runtime>(_app: tauri::AppHandle<R>, key: String) -> String {
+    std::env::var(&key).unwrap_or_default()
+}
+
+fn should_show_devtool(identifier: &str) -> bool {
+    cfg!(any(debug_assertions, feature = "dev", feature = "devtools"))
+        || identifier == STAGING_BUNDLE_ID
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn show_devtool<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> bool {
+    should_show_devtool(&app.config().identifier)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn is_app_store_build() -> bool {
+    cfg!(feature = "app-store")
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn complete_app_exit<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
+    crate::mark_exit_flush_complete();
+    app.exit(0);
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_tinybase_values<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<Option<String>, String> {
+    app.get_tinybase_values()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_pinned_tabs<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<Option<String>, String> {
+    app.get_pinned_tabs()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_pinned_tabs<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    v: String,
+) -> Result<(), String> {
+    app.set_pinned_tabs(v)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_recently_opened_sessions<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<Option<String>, String> {
+    app.get_recently_opened_sessions()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_recently_opened_sessions<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    v: String,
+) -> Result<(), String> {
+    app.set_recently_opened_sessions(v)
+}
+
+/// Mirrors the web view's localStorage for the native app that replaces this one, which
+/// cannot read it; `anlg_desktop_identity::webview_storage` keeps only the keys it imports.
+#[tauri::command]
+#[specta::specta]
+pub async fn mirror_local_storage<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    entries: std::collections::HashMap<String, String>,
+) -> Result<(), String> {
+    let locations = anlg_desktop_identity::Locations::resolve(&app.config().identifier)
+        .ok_or("The application data directory is unavailable")?;
+    let storage = anlg_desktop_identity::webview_storage::WebviewStorage::new(&locations);
+    tauri::async_runtime::spawn_blocking(move || storage.write(entries))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| error.to_string())?;
+    #[cfg(not(feature = "app-store"))]
+    {
+        use tauri_plugin_updater2::Updater2PluginExt;
+        app.updater2().mark_webview_storage_mirrored();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn is_crash_reporting_enabled() -> Result<bool, String> {
+    Ok(crate::CRASH_REPORTING_ENABLED.load(std::sync::atomic::Ordering::SeqCst))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_crash_reporting_enabled(
+    state: tauri::State<'_, crate::CrashReportingState>,
+    enabled: bool,
+) -> Result<(), String> {
+    state.set_enabled(enabled);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn check_embedded_cli<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<EmbeddedCliStatus, String> {
+    Ok(crate::embedded_cli::check(&app))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn install_embedded_cli<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<EmbeddedCliStatus, String> {
+    crate::embedded_cli::install(&app)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_skill_agents() -> Result<Vec<SkillAgentStatus>, String> {
+    if cfg!(feature = "app-store") {
+        return Ok(Vec::new());
+    }
+
+    crate::agent_skills::list()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn install_agent_skill(agent: SkillAgent) -> Result<SkillAgentStatus, String> {
+    if cfg!(feature = "app-store") {
+        return Err("Agent skill installation is unavailable in the Mac App Store build.".into());
+    }
+
+    crate::agent_skills::install(agent)
+}
