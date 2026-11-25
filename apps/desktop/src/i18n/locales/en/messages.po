@@ -170,17 +170,9 @@ msgstr "{weeks} weeks ago"
 msgid "${0} /month after trial"
 msgstr "${0} /month after trial"
 
-#: src/settings/general/audio-settings.tsx
-msgid "1 day"
-msgstr "1 day"
-
 #: src/settings/general/billing.tsx
 msgid "1 day left"
 msgstr "1 day left"
-
-#: src/settings/general/audio-settings.tsx
-msgid "1 month"
-msgstr "1 month"
 
 #: src/settings/sync/health.tsx
 msgid "1 note has a version from another device"
@@ -197,14 +189,6 @@ msgstr "1 record is too large to apply"
 #: src/settings/sync/health.tsx
 msgid "1 record is waiting for an app update"
 msgstr "1 record is waiting for an app update"
-
-#: src/settings/general/audio-settings.tsx
-msgid "1 week"
-msgstr "1 week"
-
-#: src/settings/general/audio-settings.tsx
-msgid "3 days"
-msgstr "3 days"
 
 #: src/settings/stats/date-range.tsx
 msgid "30 days"
@@ -583,6 +567,10 @@ msgstr "Allow public indexing"
 msgid "Already taken"
 msgstr "Already taken"
 
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Always"
+msgstr "Always"
+
 #: src/session/components/outer-header/overflow/always-on-top.tsx
 msgid "Always on Top"
 msgstr "Always on Top"
@@ -834,7 +822,6 @@ msgstr "Audio"
 msgid "Audio available"
 msgstr "Audio available"
 
-#: src/settings/general/audio-settings.tsx
 #: src/sidebar/settings-nav-groups.ts
 msgid "Audio file retention"
 msgstr "Audio file retention"
@@ -870,6 +857,14 @@ msgstr "Auto-add future meetings?"
 #: src/settings/automations/index.tsx
 msgid "Automate what happens before, during, or after meetings based on the conditions you choose."
 msgstr "Automate what happens before, during, or after meetings based on the conditions you choose."
+
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Automatic"
+msgstr "Automatic"
+
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Automatic detects Mandarin or mixed-language meetings and uses Whisper for the final transcript. Pick an engine to skip detection."
+msgstr "Automatic detects Mandarin or mixed-language meetings and uses Whisper for the final transcript. Pick an engine to skip detection."
 
 #: src/settings/general/app-settings.tsx
 #: src/sidebar/settings-nav-groups.ts
@@ -1318,7 +1313,6 @@ msgstr "Choose how Anarlog looks on this device."
 msgid "Choose how Auto structures and styles your summaries."
 msgstr "Choose how Auto structures and styles your summaries."
 
-#: src/settings/general/audio-settings.tsx
 #: src/sidebar/settings-nav-groups.ts
 msgid "Choose how long recordings stay on this device."
 msgstr "Choose how long recordings stay on this device."
@@ -2229,6 +2223,10 @@ msgstr "Delete 1 selected note?"
 msgid "Delete All Recurring Events"
 msgstr "Delete All Recurring Events"
 
+#: src/settings/general/audio-settings.tsx
+msgid "Delete audio after transcription"
+msgstr "Delete audio after transcription"
+
 #: src/settings/automations/index.tsx
 msgid "Delete automation"
 msgstr "Delete automation"
@@ -2245,6 +2243,10 @@ msgstr "Delete Event"
 #: src/sidebar/folder-materials.tsx
 msgid "Delete folder"
 msgstr "Delete folder"
+
+#: src/settings/general/audio-settings.tsx
+msgid "Delete immediately"
+msgstr "Delete immediately"
 
 #: src/settings/ai/stt/select.tsx
 msgid "Delete model"
@@ -2376,10 +2378,6 @@ msgstr "Dismiss {term}"
 #: src/settings/imports/index.tsx
 msgid "Documentation"
 msgstr "Documentation"
-
-#: src/settings/general/audio-settings.tsx
-msgid "Don't save"
-msgstr "Don't save"
 
 #: src/resource-sharing/share-dialog.tsx
 #: src/settings/sync/index.tsx
@@ -2823,10 +2821,6 @@ msgstr "Food & Drink"
 #: src/settings/general/notification.tsx
 msgid "For enabled notifications"
 msgstr "For enabled notifications"
-
-#: src/settings/general/audio-settings.tsx
-msgid "Forever"
-msgstr "Forever"
 
 #: src/settings/general/billing.tsx
 msgid "Free"
@@ -3320,6 +3314,10 @@ msgstr "Keep {PRO_TRIAL_DAYS} days"
 msgid "Keep Anarlog running to use your shortcut in other apps."
 msgstr "Keep Anarlog running to use your shortcut in other apps."
 
+#: src/settings/general/audio-settings.tsx
+msgid "Keep audio for (days)"
+msgstr "Keep audio for (days)"
+
 #: src/session-sharing/management-panel.tsx
 msgid "Keep desktop edits"
 msgstr "Keep desktop edits"
@@ -3376,6 +3374,10 @@ msgstr "Language & transcription"
 #: src/sidebar/toast/registry.tsx
 msgid "Language model needed"
 msgstr "Language model needed"
+
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Language routing"
+msgstr "Language routing"
 
 #. placeholder {0}: webhook.last_delivery_status
 #: src/settings/developers/webhooks.tsx
@@ -4302,6 +4304,10 @@ msgstr "Now"
 msgid "Objects"
 msgstr "Objects"
 
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Off"
+msgstr "Off"
+
 #: src/settings/general/storage/legacy-cleanup.tsx
 msgid "Older files that differ from your current data were kept as recovery copies. No action is required."
 msgstr "Older files that differ from your current data were kept as recovery copies. No action is required."
@@ -4465,6 +4471,10 @@ msgstr "Opens System Settings and guides you to add Anarlog to the {0} list"
 msgid "Opens System Settings and guides you to add Anarlog to the {0} list."
 msgstr "Opens System Settings and guides you to add Anarlog to the {0} list."
 
+#: src/settings/general/audio-settings.tsx
+msgid "Optional. Leave empty to delete right after transcription."
+msgstr "Optional. Leave empty to delete right after transcription."
+
 #: src/calendar/components/apple/permission.tsx
 #: src/calendar/components/oauth/provider-content.tsx
 #: src/settings/ai/shared/index.tsx
@@ -4519,6 +4529,10 @@ msgstr "Ownership transfer Pending. Current ownership and permissions remain unc
 #: src/shared/control.tsx
 msgid "Page not found"
 msgstr "Page not found"
+
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Parakeet only"
+msgstr "Parakeet only"
 
 #: src/session/components/note-input/transcript/renderer/speaker-assign.tsx
 #: src/session/components/outer-header/overflow/export-modal.tsx
@@ -4777,6 +4791,10 @@ msgstr "Public on the web"
 msgid "Re-transcribe"
 msgstr "Re-transcribe"
 
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Re-transcribe the recording with Whisper large-v3-turbo once the meeting ends. Automatic does this when live text came from a fast on-device engine."
+msgstr "Re-transcribe the recording with Whisper large-v3-turbo once the meeting ends. Automatic does this when live text came from a fast on-device engine."
+
 #: src/session/components/note-input/transcript/screens/empty.tsx
 msgid "Re-transcribe this audio, or upload a transcript file."
 msgstr "Re-transcribe this audio, or upload a transcript file."
@@ -5017,6 +5035,10 @@ msgstr "Remove photo"
 #: src/settings/todo/github.tsx
 msgid "Remove repository"
 msgstr "Remove repository"
+
+#: src/settings/general/audio-settings.tsx
+msgid "Remove the recording from this device as soon as the transcript is done. Transcripts and notes are kept."
+msgstr "Remove the recording from this device as soon as the transcript is done. Transcripts and notes are kept."
 
 #: src/settings/team/index.tsx
 msgid "Remove workspace logo"
@@ -7077,6 +7099,14 @@ msgstr "When they start their free trial, yours gets one more month. Up to 3 fri
 #: src/settings/automations/workflow-builder.tsx
 msgid "When this happens"
 msgstr "When this happens"
+
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Whisper"
+msgstr "Whisper"
+
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Whisper pass after meetings"
+msgstr "Whisper pass after meetings"
 
 #: src/settings/ai/stt/local-file-model.tsx
 msgid "whisper.cpp models"

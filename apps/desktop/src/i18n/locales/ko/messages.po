@@ -170,16 +170,8 @@ msgstr ""
 msgid "${0} /month after trial"
 msgstr ""
 
-#: src/settings/general/audio-settings.tsx
-msgid "1 day"
-msgstr ""
-
 #: src/settings/general/billing.tsx
 msgid "1 day left"
-msgstr ""
-
-#: src/settings/general/audio-settings.tsx
-msgid "1 month"
 msgstr ""
 
 #: src/settings/sync/health.tsx
@@ -196,14 +188,6 @@ msgstr ""
 
 #: src/settings/sync/health.tsx
 msgid "1 record is waiting for an app update"
-msgstr ""
-
-#: src/settings/general/audio-settings.tsx
-msgid "1 week"
-msgstr ""
-
-#: src/settings/general/audio-settings.tsx
-msgid "3 days"
 msgstr ""
 
 #: src/settings/stats/date-range.tsx
@@ -583,6 +567,10 @@ msgstr ""
 msgid "Already taken"
 msgstr ""
 
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Always"
+msgstr ""
+
 #: src/session/components/outer-header/overflow/always-on-top.tsx
 msgid "Always on Top"
 msgstr ""
@@ -834,7 +822,6 @@ msgstr ""
 msgid "Audio available"
 msgstr ""
 
-#: src/settings/general/audio-settings.tsx
 #: src/sidebar/settings-nav-groups.ts
 msgid "Audio file retention"
 msgstr ""
@@ -869,6 +856,14 @@ msgstr ""
 
 #: src/settings/automations/index.tsx
 msgid "Automate what happens before, during, or after meetings based on the conditions you choose."
+msgstr ""
+
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Automatic"
+msgstr ""
+
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Automatic detects Mandarin or mixed-language meetings and uses Whisper for the final transcript. Pick an engine to skip detection."
 msgstr ""
 
 #: src/settings/general/app-settings.tsx
@@ -1318,7 +1313,6 @@ msgstr ""
 msgid "Choose how Auto structures and styles your summaries."
 msgstr ""
 
-#: src/settings/general/audio-settings.tsx
 #: src/sidebar/settings-nav-groups.ts
 msgid "Choose how long recordings stay on this device."
 msgstr ""
@@ -2229,6 +2223,10 @@ msgstr ""
 msgid "Delete All Recurring Events"
 msgstr ""
 
+#: src/settings/general/audio-settings.tsx
+msgid "Delete audio after transcription"
+msgstr ""
+
 #: src/settings/automations/index.tsx
 msgid "Delete automation"
 msgstr ""
@@ -2244,6 +2242,10 @@ msgstr ""
 #: src/folders/folder-editor.tsx
 #: src/sidebar/folder-materials.tsx
 msgid "Delete folder"
+msgstr ""
+
+#: src/settings/general/audio-settings.tsx
+msgid "Delete immediately"
 msgstr ""
 
 #: src/settings/ai/stt/select.tsx
@@ -2375,10 +2377,6 @@ msgstr ""
 #: src/main/windows-title-bar.tsx
 #: src/settings/imports/index.tsx
 msgid "Documentation"
-msgstr ""
-
-#: src/settings/general/audio-settings.tsx
-msgid "Don't save"
 msgstr ""
 
 #: src/resource-sharing/share-dialog.tsx
@@ -2822,10 +2820,6 @@ msgstr ""
 
 #: src/settings/general/notification.tsx
 msgid "For enabled notifications"
-msgstr ""
-
-#: src/settings/general/audio-settings.tsx
-msgid "Forever"
 msgstr ""
 
 #: src/settings/general/billing.tsx
@@ -3320,6 +3314,10 @@ msgstr ""
 msgid "Keep Anarlog running to use your shortcut in other apps."
 msgstr ""
 
+#: src/settings/general/audio-settings.tsx
+msgid "Keep audio for (days)"
+msgstr ""
+
 #: src/session-sharing/management-panel.tsx
 msgid "Keep desktop edits"
 msgstr ""
@@ -3375,6 +3373,10 @@ msgstr ""
 
 #: src/sidebar/toast/registry.tsx
 msgid "Language model needed"
+msgstr ""
+
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Language routing"
 msgstr ""
 
 #. placeholder {0}: webhook.last_delivery_status
@@ -4302,6 +4304,10 @@ msgstr ""
 msgid "Objects"
 msgstr ""
 
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Off"
+msgstr ""
+
 #: src/settings/general/storage/legacy-cleanup.tsx
 msgid "Older files that differ from your current data were kept as recovery copies. No action is required."
 msgstr ""
@@ -4465,6 +4471,10 @@ msgstr ""
 msgid "Opens System Settings and guides you to add Anarlog to the {0} list."
 msgstr ""
 
+#: src/settings/general/audio-settings.tsx
+msgid "Optional. Leave empty to delete right after transcription."
+msgstr ""
+
 #: src/calendar/components/apple/permission.tsx
 #: src/calendar/components/oauth/provider-content.tsx
 #: src/settings/ai/shared/index.tsx
@@ -4518,6 +4528,10 @@ msgstr ""
 
 #: src/shared/control.tsx
 msgid "Page not found"
+msgstr ""
+
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Parakeet only"
 msgstr ""
 
 #: src/session/components/note-input/transcript/renderer/speaker-assign.tsx
@@ -4777,6 +4791,10 @@ msgstr ""
 msgid "Re-transcribe"
 msgstr ""
 
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Re-transcribe the recording with Whisper large-v3-turbo once the meeting ends. Automatic does this when live text came from a fast on-device engine."
+msgstr ""
+
 #: src/session/components/note-input/transcript/screens/empty.tsx
 msgid "Re-transcribe this audio, or upload a transcript file."
 msgstr ""
@@ -5016,6 +5034,10 @@ msgstr ""
 
 #: src/settings/todo/github.tsx
 msgid "Remove repository"
+msgstr ""
+
+#: src/settings/general/audio-settings.tsx
+msgid "Remove the recording from this device as soon as the transcript is done. Transcripts and notes are kept."
 msgstr ""
 
 #: src/settings/team/index.tsx
@@ -7076,6 +7098,14 @@ msgstr "친구가 무료 체험을 시작하면 내 체험이 한 달 더 연장
 
 #: src/settings/automations/workflow-builder.tsx
 msgid "When this happens"
+msgstr ""
+
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Whisper"
+msgstr ""
+
+#: src/settings/ai/stt/engine-options.tsx
+msgid "Whisper pass after meetings"
 msgstr ""
 
 #: src/settings/ai/stt/local-file-model.tsx
