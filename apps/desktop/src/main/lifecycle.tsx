@@ -12,7 +12,6 @@ import { buildChatTools } from "~/chat/tools";
 import { CloudApiBackfillLifecycle } from "~/cloud-api/lifecycle";
 import { searchContacts } from "~/contacts/queries";
 import { useRegisterTools } from "~/contexts/tool";
-import { DictationLifecycle } from "~/dictation/lifecycle";
 import { takePendingWelcomeSession } from "~/onboarding/welcome-note";
 import { useSearchEngine } from "~/search/contexts/engine";
 import { initEnhancerService } from "~/services/enhancer";
@@ -75,7 +74,6 @@ export function ClassicMainServices() {
       <MainListenerControlBridge />
       <BrowserMeetingStartBridge />
       <MeetingCaptureStopToasts />
-      <DictationLifecycle />
       <ToolRegistration />
       <EnhancerInit />
       <GoogleDriveAutoSyncLifecycle />

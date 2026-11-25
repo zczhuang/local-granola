@@ -190,12 +190,11 @@ describe("SettingsNav", () => {
     mocks.isPro = false;
     render(<SettingsNav />);
 
-    expect(hasProLock(/Sync/)).toBe(true);
+    expect(hasProLock(/Dictionary/)).toBe(true);
 
     for (const [label, tab] of [
       ["Sync", "sync"],
       ["Dictionary", "dictionary"],
-      ["Teams", "team"],
     ]) {
       fireEvent.click(screen.getByRole("button", { name: new RegExp(label) }));
       expect(openedSettingsTab()).toEqual({ tab });
@@ -206,23 +205,11 @@ describe("SettingsNav", () => {
     expect(mocks.upgradeToPro).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["without a workspace", [], false, true],
-    [
-      "for members of an existing workspace",
-      [{ workspaceId: "ws-1" }],
-      false,
-      false,
-    ],
-    ["while workspaces are loading", undefined, true, false],
-  ])("locks Teams for free users only %s", (_, workspaces, loading, locked) => {
-    mocks.isPro = false;
-    mocks.workspaces = workspaces;
-    mocks.workspacesLoading = loading;
-
+  it("omits Teams and Dictation from settings navigation", () => {
     render(<SettingsNav />);
 
-    expect(hasProLock(/Teams/)).toBe(locked);
+    expect(screen.queryByRole("button", { name: /Teams/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Dictation/ })).toBeNull();
   });
 
   it("filters nav items by item or group label", () => {

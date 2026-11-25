@@ -16,19 +16,16 @@ import {
   Lightning,
   type Icon,
   Lock,
-  Microphone,
   ShieldCheck,
   Sparkle,
   Sun,
   User,
   Users,
-  UsersThree,
   VideoCamera,
   Waveform,
 } from "@anlg/ui/components/icons";
 
 import { privacyMessages } from "~/settings/general/app-settings";
-import { useMyWorkspacesWithMirror } from "~/settings/team/mirror";
 import { LOCAL_ONLY } from "~/shared/local-only";
 import { type SettingsTab, type TabInput } from "~/store/zustand/tabs";
 
@@ -53,8 +50,6 @@ export type SettingsNavGroup = { label: string; items: SettingsNavItem[] };
 
 export function useSettingsNavGroups(): SettingsNavGroup[] {
   const { i18n, t } = useLingui();
-  const workspaces = useMyWorkspacesWithMirror();
-  const hasExistingWorkspace = (workspaces.data?.length ?? 0) > 0;
 
   return [
     {
@@ -108,13 +103,6 @@ export function useSettingsNavGroups(): SettingsNavGroup[] {
           label: t`Insights`,
           icon: ChartLineUp,
           searchTerms: [t`Hours transcribed`, t`Daily conversations`],
-        },
-        {
-          id: "team",
-          label: t`Teams`,
-          icon: UsersThree,
-          searchTerms: [t`Members`, t`Join automatically with a work email`],
-          requiresPro: !workspaces.isLoading && !hasExistingWorkspace,
         },
         {
           id: "sync",
@@ -173,20 +161,6 @@ export function useSettingsNavGroups(): SettingsNavGroup[] {
           label: t`Transcription`,
           icon: Waveform,
           searchTerms: [t`Configure Providers`, t`API Key`],
-        },
-        {
-          id: "dictation",
-          label: t`Dictation`,
-          icon: Microphone,
-          searchTerms: [
-            t`Enable dictation`,
-            t`Microphone`,
-            t`Live transcript preview`,
-            t`Hands-free dictation`,
-            t`Click here, then use your dictation shortcut.`,
-            t`Last dictation`,
-          ],
-          requiresPro: true,
         },
         {
           id: "intelligence",
