@@ -70,7 +70,7 @@ describe("DictionarySettings", () => {
 
   afterEach(cleanup);
 
-  it("shows the dictionary editor and toasts on the free plan", () => {
+  it("allows editing the dictionary in local-only mode without a Pro plan", () => {
     mocks.billing.isPro = false;
 
     render(<SettingsDictionary />);
@@ -80,15 +80,7 @@ describe("DictionarySettings", () => {
     expect(terms).toBeTruthy();
     fireEvent.click(terms!);
 
-    expect(mocks.toastWarning).toHaveBeenCalledWith(
-      "This requires Anarlog Pro",
-      {
-        action: {
-          label: "Upgrade",
-          onClick: expect.any(Function),
-        },
-      },
-    );
+    expect(mocks.toastWarning).not.toHaveBeenCalled();
     expect(mocks.billing.upgradeToPro).not.toHaveBeenCalled();
   });
 

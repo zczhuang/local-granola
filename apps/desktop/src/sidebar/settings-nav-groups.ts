@@ -173,7 +173,6 @@ export function useSettingsNavGroups(): SettingsNavGroup[] {
           label: t`Dictionary`,
           icon: BookOpen,
           searchTerms: [t`Add names, jargon, or product terms to prefer`],
-          requiresPro: true,
         },
       ],
     },

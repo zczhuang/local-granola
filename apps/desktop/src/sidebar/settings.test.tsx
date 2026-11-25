@@ -190,7 +190,8 @@ describe("SettingsNav", () => {
     mocks.isPro = false;
     render(<SettingsNav />);
 
-    expect(hasProLock(/Dictionary/)).toBe(true);
+    expect(hasProLock(/Automations/)).toBe(true);
+    expect(hasProLock(/Dictionary/)).toBe(false);
 
     for (const [label, tab] of [
       ["Sync", "sync"],
