@@ -42,8 +42,11 @@ html[data-rounded-window] #root {
 
 @theme {
   --font-sans:
-    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-hand: "Bradley Hand", "Segoe Print", "Comic Sans MS", cursive;
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter",
+    system-ui, "Segoe UI", sans-serif;
+  --font-hand:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter",
+    system-ui, "Segoe UI", sans-serif;
 
   /* Capsule radii still read as pills/circles; remap to a control squircle. */
   --radius-full: 0.5rem;

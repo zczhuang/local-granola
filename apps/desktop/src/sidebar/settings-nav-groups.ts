@@ -8,7 +8,6 @@ import {
   CalendarDots,
   ChartLineUp,
   Code,
-  CreditCard,
   DownloadSimple,
   FileText,
   FolderSimple,
@@ -85,18 +84,6 @@ export function useSettingsNavGroups(): SettingsNavGroup[] {
             t`Manage sign-in methods`,
             t`Sign out`,
           ],
-        },
-        {
-          id: "billing",
-          label: t`Billing`,
-          icon: CreditCard,
-          searchTerms: [t`Your plan`, t`Manage billing`, t`Add payment method`],
-        },
-        {
-          id: "referrals",
-          label: t`Invite friends`,
-          icon: Users,
-          searchTerms: [t`Free months earned`],
         },
         {
           id: "insights",

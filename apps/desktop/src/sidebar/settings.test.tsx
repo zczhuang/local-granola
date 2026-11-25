@@ -149,7 +149,6 @@ describe("SettingsNav", () => {
   it.each([
     ["Permissions", "permissions"],
     ["Account", "account"],
-    ["Billing", "billing"],
   ])("opens %s inside settings", (label, tab) => {
     render(<SettingsNav />);
 
@@ -206,11 +205,13 @@ describe("SettingsNav", () => {
     expect(mocks.upgradeToPro).not.toHaveBeenCalled();
   });
 
-  it("omits Teams and Dictation from settings navigation", () => {
+  it("omits Teams, Dictation, Billing, and Invite friends from settings navigation", () => {
     render(<SettingsNav />);
 
     expect(screen.queryByRole("button", { name: /Teams/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Dictation/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Billing/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Invite friends/ })).toBeNull();
   });
 
   it("filters nav items by item or group label", () => {
