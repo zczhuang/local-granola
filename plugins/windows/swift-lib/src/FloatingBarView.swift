@@ -31,21 +31,22 @@ enum FloatingBarLayout {
   static let hoverHandleHorizontalPadding: CGFloat = 8
   static let dragClickThreshold: CGFloat = 4
 
-  static func compactControlsWidth(showsExpand: Bool) -> CGFloat {
-    showsExpand ? compactStopWidth + compactGap + compactIconSize : compactSoloStopWidth
+  static func compactControlsWidth(showsExpand: Bool, showsPause: Bool = false) -> CGFloat {
+    let base = showsExpand ? compactStopWidth + compactGap + compactIconSize : compactSoloStopWidth
+    return showsPause ? base + compactGap + compactIconSize : base
   }
 
-  static func compactWidth(showsExpand: Bool) -> CGFloat {
-    compactControlsWidth(showsExpand: showsExpand)
+  static func compactWidth(showsExpand: Bool, showsPause: Bool = false) -> CGFloat {
+    compactControlsWidth(showsExpand: showsExpand, showsPause: showsPause)
       + compactHorizontalPadding * 2
   }
 
-  static func containerSize(isExpanded: Bool, showsExpand: Bool)
+  static func containerSize(isExpanded: Bool, showsExpand: Bool, showsPause: Bool = false)
     -> NSSize
   {
     NSSize(
       width: (isExpanded
-        ? expandedWidth : compactWidth(showsExpand: showsExpand)) + inset
+        ? expandedWidth : compactWidth(showsExpand: showsExpand, showsPause: showsPause)) + inset
         * 2,
       height: (isExpanded ? expandedHeight : compactHeight) + hoverHandleReservedHeight + inset * 2)
   }
@@ -95,7 +96,8 @@ struct FloatingBarView: View {
         floatingControls(isExpanded: model.isExpanded)
           .frame(
             width: FloatingBarLayout.compactControlsWidth(
-              showsExpand: model.liveCaptionToggleVisible),
+              showsExpand: model.liveCaptionToggleVisible,
+              showsPause: model.dictation == nil),
             height: FloatingBarLayout.compactHeight
           )
           .position(
@@ -209,6 +211,19 @@ struct FloatingBarView: View {
 
   private func floatingControls(isExpanded: Bool) -> some View {
     HStack(spacing: FloatingBarLayout.compactGap) {
+      if model.dictation == nil {
+        let isPaused = model.status == .paused
+        FloatingIconButton(
+          systemName: isPaused ? "play.fill" : "pause.fill",
+          accessibilityLabel: isPaused ? "Resume listening" : "Pause listening",
+          color: isPaused ? accentColor : primaryContentColor,
+          hoverFill: controlHoverFill,
+          size: FloatingBarLayout.compactIconSize,
+          action: { performClick { RustBridge.togglePause() } }
+        )
+        .help(isPaused ? "Resume listening" : "Pause listening")
+      }
+
       audioControl(
         width: model.liveCaptionToggleVisible
           ? FloatingBarLayout.compactStopWidth : FloatingBarLayout.compactSoloStopWidth,
@@ -251,6 +266,10 @@ struct FloatingBarView: View {
               .font(.system(size: 12, weight: .semibold))
           }
           .foregroundStyle(stopColor)
+        } else if model.status == .paused {
+          Text("Paused")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(primaryContentColor.opacity(0.75))
         } else if model.status == .reconnecting {
           ProgressView().controlSize(.small)
             .accessibilityHidden(true)
@@ -298,7 +317,8 @@ struct FloatingBarView: View {
     model.placement?.frame.size
       ?? FloatingBarLayout.containerSize(
         isExpanded: model.isExpanded,
-        showsExpand: model.liveCaptionToggleVisible
+        showsExpand: model.liveCaptionToggleVisible,
+        showsPause: model.dictation == nil
       )
   }
 

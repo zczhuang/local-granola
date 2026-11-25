@@ -7,6 +7,7 @@ use crate::window::live_caption::LiveCaptionPosition;
 #[serde(rename_all = "camelCase")]
 pub enum FloatingBarStatus {
     Recording,
+    Paused,
     Reconnecting,
     Error,
 }
@@ -247,6 +248,13 @@ mod platform {
     pub extern "C" fn rust_on_floating_bar_stop() {
         if let Some(app) = APP_HANDLE.get() {
             let _ = crate::events::FloatingBarStop {}.emit(app);
+        }
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_on_floating_bar_toggle_pause() {
+        if let Some(app) = APP_HANDLE.get() {
+            let _ = crate::events::FloatingBarTogglePause {}.emit(app);
         }
     }
 

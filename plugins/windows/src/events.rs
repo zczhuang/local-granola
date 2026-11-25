@@ -172,6 +172,10 @@ common_event_derives! {
 }
 
 common_event_derives! {
+    pub struct FloatingBarTogglePause {}
+}
+
+common_event_derives! {
     pub struct FloatingBarOpenMain {}
 }
 

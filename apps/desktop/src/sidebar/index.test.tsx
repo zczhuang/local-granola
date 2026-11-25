@@ -1,8 +1,10 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   currentTab: { type: "empty" } as { type: string } | null,
+  openNew: vi.fn(),
+  leaveOverlayTab: vi.fn(),
   platform: "macos",
 }));
 
@@ -10,10 +12,17 @@ vi.mock("@tauri-apps/plugin-os", () => ({
   platform: () => mocks.platform,
 }));
 
+vi.mock("~/shared/leave-overlay-tab", () => ({
+  leaveOverlayTab: () => mocks.leaveOverlayTab(),
+}));
+
 vi.mock("~/store/zustand/tabs", () => ({
   useTabs: (
-    selector: (state: { currentTab: typeof mocks.currentTab }) => unknown,
-  ) => selector({ currentTab: mocks.currentTab }),
+    selector: (state: {
+      currentTab: typeof mocks.currentTab;
+      openNew: typeof mocks.openNew;
+    }) => unknown,
+  ) => selector({ currentTab: mocks.currentTab, openNew: mocks.openNew }),
 }));
 
 vi.mock("~/sidebar/folder-materials", () => ({
@@ -61,6 +70,8 @@ import { LeftSidebar } from "./index";
 describe("LeftSidebar", () => {
   beforeEach(() => {
     mocks.currentTab = { type: "empty" };
+    mocks.openNew.mockClear();
+    mocks.leaveOverlayTab.mockClear();
     mocks.platform = "macos";
   });
 
@@ -108,5 +119,30 @@ describe("LeftSidebar", () => {
 
     expect(screen.getByTestId(testId)).toBeTruthy();
     expect(screen.queryByTestId("timeline-view")).toBeNull();
+  });
+
+  it("opens settings and workspace views from the left sidebar icon bar", () => {
+    render(<LeftSidebar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(mocks.openNew).toHaveBeenCalledWith({
+      type: "settings",
+      state: { tab: "app" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Calendar" }));
+    expect(mocks.openNew).toHaveBeenCalledWith({ type: "calendar" });
+  });
+
+  it("returns to notes when clicking the already-active sidebar icon", () => {
+    mocks.currentTab = { type: "settings" };
+    render(<LeftSidebar />);
+
+    const settingsButton = screen.getByRole("button", { name: "Settings" });
+    expect(settingsButton.getAttribute("aria-current")).toBe("page");
+
+    fireEvent.click(settingsButton);
+    expect(mocks.leaveOverlayTab).toHaveBeenCalledOnce();
+    expect(mocks.openNew).not.toHaveBeenCalled();
   });
 });

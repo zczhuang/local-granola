@@ -2,6 +2,7 @@ import Foundation
 
 enum FloatingBarStatus: String, Codable, Equatable {
   case recording
+  case paused
   case reconnecting
   case error
 }

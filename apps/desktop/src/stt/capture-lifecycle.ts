@@ -1243,20 +1243,24 @@ export function useCaptureLifecycle(sessionId: string) {
               return;
             }
           }
-          try {
-            const service = getEnhancerService();
-            if (!service) {
-              await requestMainAutoEnhance(sessionId, summaryMode);
-            } else {
-              await service.requestAutoEnhance(sessionId, summaryMode);
+          const isPausedSession =
+            listenerStore.getState().live.pausedSessionId === sessionId;
+          if (!isPausedSession) {
+            try {
+              const service = getEnhancerService();
+              if (!service) {
+                await requestMainAutoEnhance(sessionId, summaryMode);
+              } else {
+                await service.requestAutoEnhance(sessionId, summaryMode);
+              }
+            } catch (error) {
+              summaryScheduled = false;
+              console.error("[listener] failed to schedule summary", error);
+              await notifyFailure(
+                "The transcript was saved, but Anarlog could not start the summary. Try generating it again.",
+                "post-capture-summary-failed",
+              );
             }
-          } catch (error) {
-            summaryScheduled = false;
-            console.error("[listener] failed to schedule summary", error);
-            await notifyFailure(
-              "The transcript was saved, but Anarlog could not start the summary. Try generating it again.",
-              "post-capture-summary-failed",
-            );
           }
         }
 

@@ -17,7 +17,7 @@ import { SegmentKeyUtils, type RenderLabelContext } from "~/stt/live-segment";
 import { getLiveTranscriptPausedMessage } from "~/stt/live-transcript-interrupted";
 
 export type ListenerState = ReturnType<ListenerStore["getState"]>;
-type FloatingBarStatus = "recording" | "reconnecting" | "error";
+type FloatingBarStatus = "recording" | "paused" | "reconnecting" | "error";
 type FloatingBarColorScheme = "light" | "dark";
 
 export type FloatingTranscriptBubble = {
@@ -75,26 +75,38 @@ export function getFloatingRouteState(
     transcriptBubbles?: FloatingTranscriptBubble[];
   } = {},
 ): FloatingRouteState | null {
-  if (state.live.status !== "active") {
+  const isPaused =
+    state.live.status === "inactive" &&
+    !state.live.loading &&
+    Boolean(state.live.pausedSessionId);
+  const effectiveSessionId = isPaused
+    ? state.live.pausedSessionId
+    : state.live.status === "active"
+      ? state.live.sessionId
+      : null;
+
+  if (!effectiveSessionId) {
     return null;
   }
 
-  if (!state.live.sessionId) {
-    return null;
-  }
-
-  if (sessionId && state.live.sessionId !== sessionId) {
+  if (sessionId && effectiveSessionId !== sessionId) {
     return null;
   }
 
   return {
-    sessionId: state.live.sessionId,
+    sessionId: effectiveSessionId,
     title: getFloatingTitle(sessionTitle),
-    amplitude: Math.min(
-      Math.hypot(state.live.amplitude.mic, state.live.amplitude.speaker),
-      1,
-    ),
-    status: getCaptureWarning(state.live) ? "error" : "recording",
+    amplitude: isPaused
+      ? 0
+      : Math.min(
+          Math.hypot(state.live.amplitude.mic, state.live.amplitude.speaker),
+          1,
+        ),
+    status: isPaused
+      ? "paused"
+      : getCaptureWarning(state.live)
+        ? "error"
+        : "recording",
     colorScheme,
     opacity: settings.floatingBarOpacity,
     liveCaptionOpacity: settings.liveCaptionOpacity,
@@ -102,7 +114,7 @@ export function getFloatingRouteState(
     liveCaptionLineCount: settings.liveCaptionLineCount,
     liveCaptionPosition: settings.liveCaptionPosition,
     liveCaptionMinimized: settings.liveCaptionMinimized,
-    liveCaptionToggleVisible,
+    liveCaptionToggleVisible: isPaused ? true : liveCaptionToggleVisible,
     transcriptBubbles:
       transcriptBubbles ??
       getFloatingTranscriptBubbles(

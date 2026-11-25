@@ -3,7 +3,14 @@ import { useCallback, useRef, useState } from "react";
 
 import { commands as deeplinkCommands } from "@anlg/plugin-deeplink2";
 import { commands as openerCommands } from "@anlg/plugin-opener2";
-import { Headset, Square, VideoCamera } from "@anlg/ui/components/icons";
+import {
+  Headset,
+  Microphone,
+  Pause,
+  Play,
+  Square,
+  VideoCamera,
+} from "@anlg/ui/components/icons";
 import { Button } from "@anlg/ui/components/ui/button";
 import {
   Popover,
@@ -24,6 +31,7 @@ import {
   buildWelcomeNoteDemoUrl,
   WELCOME_NOTE_TRACKING_ID,
 } from "~/onboarding/welcome-note.constants";
+import { getEnhancerService } from "~/services/enhancer";
 import { SessionShareButton } from "~/session-sharing";
 import { useEventCountdown } from "~/session/hooks/useEventCountdown";
 import { useMeetingMicInUse } from "~/session/hooks/useMeetingMicInUse";
@@ -38,10 +46,12 @@ import {
   WINDOW_CONTROLS_GUTTER_CLASS,
   WINDOW_CONTROLS_GUTTER_PLUS_32_CLASS,
 } from "~/shared/hooks/useWindowControlsGutter";
+import { LOCAL_ONLY } from "~/shared/local-only";
 import { getScheme } from "~/shared/utils";
 import type { EditorView, Tab } from "~/store/zustand/tabs/schema";
 import { useListener } from "~/stt/contexts";
 import { useStartListening } from "~/stt/useStartListening";
+import { useStartListeningWithBatchOverride } from "~/stt/useStartListeningWithBatchOverride";
 import {
   isMainWebviewWindow,
   requestMainListenerControl,
@@ -143,26 +153,95 @@ function HeaderMeetingControl({
   sessionMode: string;
   meetingOver: boolean;
 }) {
+  const { t } = useLingui();
   const sessionEvent = useSessionEvent(sessionId);
   const hasTranscript = useHasTranscript(sessionId);
   const { audioExists } = useAudioPlayer();
+  const resumeListening = useStartListeningWithBatchOverride(sessionId);
+  const { pausedSessionId, clearPaused } = useListener((state) => ({
+    pausedSessionId: state.live?.pausedSessionId ?? null,
+    clearPaused: state.clearPaused,
+  }));
+  const isPausedForSession =
+    sessionMode === "inactive" && pausedSessionId === sessionId;
   const now = useNow();
   const endedAt = sessionEvent?.ended_at
     ? safeParseDate(sessionEvent.ended_at)
     : null;
   const ended = !!endedAt && endedAt.getTime() <= now.getTime();
+  const handleResumeListening = useCallback(() => {
+    if (!isMainWebviewWindow()) {
+      void requestMainListenerControl("start", sessionId);
+      return;
+    }
+
+    void resumeListening();
+  }, [resumeListening, sessionId]);
+  const handleStopPaused = useCallback(() => {
+    clearPaused?.();
+    void getEnhancerService()?.requestAutoEnhance(sessionId, "refresh");
+  }, [clearPaused, sessionId]);
+
   if (sessionMode === "finalizing" || sessionMode === "running_batch") {
     return null;
   }
 
+  if (isPausedForSession) {
+    return (
+      <div className="relative mr-1 ml-1 flex min-w-0 shrink-0 items-center gap-1.5">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          data-tauri-drag-region="false"
+          aria-label={t`Resume listening`}
+          title={t`Resume listening`}
+          onClick={handleResumeListening}
+          className="border-border bg-card text-foreground max-w-56 shrink-0 gap-1.5 overflow-hidden border pr-2.5 pl-2 text-sm"
+        >
+          <Play className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <span className="truncate">{t`Resume listening`}</span>
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          data-tauri-drag-region="false"
+          aria-label={t`Stop`}
+          title={t`Finish meeting and summarize`}
+          onClick={handleStopPaused}
+          className="border-border bg-card text-foreground shrink-0 gap-1.5 border pr-2.5 pl-2 text-sm"
+        >
+          <Square className="size-3 text-red-500" />
+          <span>{t`Stop`}</span>
+        </Button>
+      </div>
+    );
+  }
+
   if (meetingOver) {
     return (
-      <div className="relative mr-1 ml-1 flex min-w-0 shrink-0 items-center">
-        <SessionShareButton
-          key={sessionId}
-          sessionId={sessionId}
-          variant="cta"
-        />
+      <div className="relative mr-1 ml-1 flex min-w-0 shrink-0 items-center gap-1.5">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          data-tauri-drag-region="false"
+          aria-label={t`Resume listening`}
+          title={t`Resume listening`}
+          onClick={handleResumeListening}
+          className="border-border text-foreground max-w-56 shrink-0 gap-1.5 overflow-hidden border bg-transparent pr-2.5 pl-2 text-sm shadow-none"
+        >
+          <Microphone className="size-3.5 shrink-0" />
+          <span className="truncate">{t`Resume listening`}</span>
+        </Button>
+        {!LOCAL_ONLY ? (
+          <SessionShareButton
+            key={sessionId}
+            sessionId={sessionId}
+            variant="cta"
+          />
+        ) : null}
       </div>
     );
   }
@@ -204,7 +283,10 @@ function HeaderMeetingAction({
   audioExists: boolean;
 }) {
   const startListening = useStartListening(sessionId);
-  const stop = useListener((state) => state.stop);
+  const { stop, pause } = useListener((state) => ({
+    stop: state.stop,
+    pause: state.pause,
+  }));
   const remote = getRemoteMeeting(event?.meeting_link);
   const meetingLink = event?.meeting_link || null;
   const isWelcomeDemo = event?.tracking_id === WELCOME_NOTE_TRACKING_ID;
@@ -273,6 +355,9 @@ function HeaderMeetingAction({
     }
   }, [openMeeting, start]);
   const countdown = useEventCountdown(sessionId);
+  const pauseListening = useCallback(() => {
+    pause?.();
+  }, [pause]);
   const stopListening = useCallback(() => {
     if (!isMainWebviewWindow()) {
       void requestMainListenerControl("stop", sessionId);
@@ -335,7 +420,23 @@ function HeaderMeetingAction({
 
   return (
     <Popover open={showWelcomeDemoPrompt}>
-      <div className="relative mr-1 ml-1 flex min-w-0 shrink-0 items-center">
+      <div className="relative mr-1 ml-1 flex min-w-0 shrink-0 items-center gap-1.5">
+        {sessionMode === "active" && isMainWebviewWindow() ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            data-tauri-drag-region="false"
+            aria-label={t`Pause listening`}
+            title={t`Pause listening`}
+            disabled={disabled}
+            onClick={pauseListening}
+            className="border-border bg-card text-foreground shrink-0 gap-1.5 border pr-2.5 pl-2 text-sm"
+          >
+            <Pause className="size-3 shrink-0" />
+            <span>{t`Pause`}</span>
+          </Button>
+        ) : null}
         <PopoverAnchor asChild>
           <Button
             type="button"

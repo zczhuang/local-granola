@@ -99,4 +99,33 @@ describe("FloatingBarOverlay", () => {
     );
     expect(onToggleExpanded).toHaveBeenCalledWith(false);
   });
+
+  it("toggles pause and resume from the floating pill", () => {
+    const onTogglePause = vi.fn();
+
+    const view = render(
+      <FloatingBarOverlay
+        state={state({ status: "recording" })}
+        onStop={vi.fn()}
+        onTogglePause={onTogglePause}
+        onToggleExpanded={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause listening" }));
+    expect(onTogglePause).toHaveBeenCalledOnce();
+
+    view.rerender(
+      <FloatingBarOverlay
+        state={state({ status: "paused", amplitude: 0 })}
+        onStop={vi.fn()}
+        onTogglePause={onTogglePause}
+        onToggleExpanded={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Paused")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Resume listening" }));
+    expect(onTogglePause).toHaveBeenCalledTimes(2);
+  });
 });

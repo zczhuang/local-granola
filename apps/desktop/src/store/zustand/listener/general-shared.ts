@@ -42,6 +42,7 @@ export type GeneralState = {
     captureGenerationBySession: Record<string, number>;
     intervalId?: LiveIntervalId;
     sessionId: string | null;
+    pausedSessionId: string | null;
     muted: boolean;
     captureHealth: {
       mic: boolean | null;
@@ -81,6 +82,7 @@ const initialLiveState: LiveState = {
   captureGenerationCounter: 0,
   captureGenerationBySession: {},
   sessionId: null,
+  pausedSessionId: null,
   muted: false,
   captureHealth: { mic: null, speaker: null, unavailable: false },
   lastError: null,

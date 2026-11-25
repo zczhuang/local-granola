@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
     live: {
       status: "active",
       sessionId: "session-1",
+      pausedSessionId: null as string | null,
       amplitude: { mic: 0, speaker: 0 },
       captureHealth: { mic: null, speaker: null, unavailable: false },
       degraded: null,
@@ -41,6 +42,8 @@ const mocks = vi.hoisted(() => ({
     liveSegments: [],
     liveCaptionText: "we should ship this",
     stop: vi.fn(),
+    pause: vi.fn(),
+    clearPaused: vi.fn(),
   },
   subscribeListener: vi.fn(() => vi.fn()),
 }));
@@ -62,6 +65,7 @@ vi.mock("@anlg/plugin-windows", () => ({
   events: {
     floatingBarOpenMain: { listen: mocks.listen },
     floatingBarSettingsChange: { listen: mocks.listen },
+    floatingBarTogglePause: { listen: mocks.listen },
     floatingBarStop: {
       listen: vi.fn(async (callback) => {
         mocks.meetingStop = callback;

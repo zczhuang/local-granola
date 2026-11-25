@@ -8,6 +8,8 @@ import {
   ArrowsInSimple,
   ArrowsOutSimple,
   CaretDown,
+  Pause,
+  Play,
   Square,
   WarningCircle,
 } from "@anlg/ui/components/icons";
@@ -35,10 +37,12 @@ import {
 export function FloatingBarOverlay({
   state,
   onStop,
+  onTogglePause,
   onToggleExpanded,
 }: {
   state: FloatingBarState;
   onStop: () => void;
+  onTogglePause?: () => void;
   onToggleExpanded: (expanded: boolean) => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -46,7 +50,11 @@ export function FloatingBarOverlay({
     state.liveCaptionToggleVisible && !state.liveCaptionMinimized;
   const showsHoverHandle = hovered && !isExpanded;
   const colors = barColors(state);
-  const controlsWidth = compactControlsWidth(state.liveCaptionToggleVisible);
+  const showsPause = !state.dictation;
+  const controlsWidth = compactControlsWidth(
+    state.liveCaptionToggleVisible,
+    showsPause,
+  );
   const expandsUpward = state.layout?.expandsUpward ?? false;
 
   return (
@@ -125,6 +133,7 @@ export function FloatingBarOverlay({
               isExpanded={isExpanded}
               colors={colors}
               onStop={onStop}
+              onTogglePause={onTogglePause}
               onToggleExpanded={onToggleExpanded}
             />
           </div>
@@ -139,19 +148,40 @@ function FloatingControls({
   isExpanded,
   colors,
   onStop,
+  onTogglePause,
   onToggleExpanded,
 }: {
   state: FloatingBarState;
   isExpanded: boolean;
   colors: BarColors;
   onStop: () => void;
+  onTogglePause?: () => void;
   onToggleExpanded: (expanded: boolean) => void;
 }) {
+  const isPaused = state.status === "paused";
   return (
     <div
       className="flex items-center"
       style={{ gap: FLOATING_BAR_COMPACT_GAP }}
     >
+      {!state.dictation ? (
+        <button
+          type="button"
+          data-tauri-drag-region="false"
+          aria-label={isPaused ? "Resume listening" : "Pause listening"}
+          title={isPaused ? "Resume listening" : "Pause listening"}
+          onClick={onTogglePause}
+          className="flex items-center justify-center"
+          style={{
+            width: FLOATING_BAR_COMPACT_ICON_SIZE,
+            height: FLOATING_BAR_COMPACT_ICON_SIZE,
+            borderRadius: FLOATING_BAR_CONTROL_RADIUS,
+            color: isPaused ? colors.accent : colors.content,
+          }}
+        >
+          {isPaused ? <Play size={13} /> : <Pause size={13} />}
+        </button>
+      ) : null}
       <StopControl state={state} colors={colors} onStop={onStop} />
       {state.liveCaptionToggleVisible ? (
         <button
@@ -231,6 +261,13 @@ function StopControl({
         <span className="flex items-center gap-1.5 text-xs font-semibold">
           <Square size={9} />
           {state.dictation ? "Done" : "Stop"}
+        </span>
+      ) : state.status === "paused" ? (
+        <span
+          className="text-[11px] font-semibold"
+          style={{ color: colors.content, opacity: 0.75 }}
+        >
+          Paused
         </span>
       ) : state.status === "error" ? (
         <WarningCircle size={20} aria-hidden="true" />

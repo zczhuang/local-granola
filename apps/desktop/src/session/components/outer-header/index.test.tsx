@@ -19,7 +19,11 @@ const mocks = vi.hoisted(() => ({
   startCallbackServer: vi.fn(),
   getScheme: vi.fn(),
   startListening: vi.fn(),
+  resumeListening: vi.fn(),
   stopListening: vi.fn(),
+  pauseListening: vi.fn(),
+  clearPaused: vi.fn(),
+  pausedSessionId: null as string | null,
   requestMainListenerControl: vi.fn(),
   isMainWebviewWindow: true,
   audioExists: false,
@@ -102,15 +106,22 @@ vi.mock("~/store/zustand/tabs", () => ({
 vi.mock("~/stt/contexts", () => ({
   useListener: vi.fn((selector: (state: unknown) => unknown) =>
     selector({
+      live: { pausedSessionId: mocks.pausedSessionId },
       getSessionMode: (sessionId: string) =>
         mocks.sessionModes[sessionId] ?? "inactive",
       stop: mocks.stopListening,
+      pause: mocks.pauseListening,
+      clearPaused: mocks.clearPaused,
     }),
   ),
 }));
 
 vi.mock("~/stt/useStartListening", () => ({
   useStartListening: () => mocks.startListening,
+}));
+
+vi.mock("~/stt/useStartListeningWithBatchOverride", () => ({
+  useStartListeningWithBatchOverride: () => mocks.resumeListening,
 }));
 
 vi.mock("~/stt/window-control", () => ({
@@ -213,7 +224,11 @@ describe("OuterHeader", () => {
     mocks.getScheme.mockReset();
     mocks.getScheme.mockResolvedValue("anarlog-dev");
     mocks.startListening.mockClear();
+    mocks.resumeListening.mockClear();
     mocks.stopListening.mockClear();
+    mocks.pauseListening.mockClear();
+    mocks.clearPaused.mockClear();
+    mocks.pausedSessionId = null;
     mocks.requestMainListenerControl.mockClear();
     mocks.isMainWebviewWindow = true;
     mocks.audioExists = false;
@@ -486,4 +501,35 @@ describe("OuterHeader", () => {
       ).toBe(visible);
     },
   );
+
+  it("shows a first-level Resume listening button after a meeting has transcript or audio", () => {
+    arrange({ transcript: true });
+    renderHeader();
+
+    const resumeButton = screen.getByRole("button", {
+      name: "Resume listening",
+    });
+    fireEvent.click(resumeButton);
+    expect(mocks.resumeListening).toHaveBeenCalledOnce();
+  });
+
+  it("shows a Pause button while actively recording and Resume/Stop while paused", () => {
+    arrange({ mode: "active" });
+    const view = renderHeader();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause listening" }));
+    expect(mocks.pauseListening).toHaveBeenCalledOnce();
+
+    mocks.sessionModes = { "session-1": "inactive" };
+    mocks.pausedSessionId = "session-1";
+    view.rerender(
+      <OuterHeader sessionId="session-1" currentView={{ type: "raw" }} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Resume listening" }));
+    expect(mocks.resumeListening).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(mocks.clearPaused).toHaveBeenCalledOnce();
+  });
 });

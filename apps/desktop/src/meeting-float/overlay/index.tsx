@@ -83,6 +83,11 @@ export function FloatingBarOverlayScreen() {
             void windowsEvents.floatingBarStop.emit({});
           }
         }}
+        onTogglePause={() => {
+          if (!state.dictation) {
+            void windowsEvents.floatingBarTogglePause.emit({});
+          }
+        }}
         onToggleExpanded={(expanded) => {
           if (state.dictation) {
             void windowsEvents.floatingBarDictationAction.emit({

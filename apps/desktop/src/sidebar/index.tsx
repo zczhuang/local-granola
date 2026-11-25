@@ -7,6 +7,7 @@ import { CalendarNav } from "./calendar";
 import { ContactsNav } from "./contacts";
 import { FolderMaterialsPanel } from "./folder-materials";
 import { FoldersNav } from "./folders";
+import { SidebarIconBar } from "./icon-bar";
 import type { SidebarNoteFilter } from "./note-filter";
 import { SettingsNav } from "./settings";
 import { SharedNotesNav } from "./shared-notes";
@@ -106,6 +107,7 @@ export function LeftSidebar({
           )}
         </div>
       </div>
+      <SidebarIconBar />
     </div>
   );
 }

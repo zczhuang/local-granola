@@ -42,6 +42,7 @@ import {
 
 import { getDictationPanelState } from "~/dictation/panel";
 import { useDictationStatus } from "~/dictation/state";
+import { getEnhancerService } from "~/services/enhancer";
 import {
   getStoredSettingValues,
   setSettingValue,
@@ -52,6 +53,7 @@ import { useConfigValue, useConfigValues } from "~/shared/config";
 import { useLatestRef } from "~/shared/hooks/useLatestRef";
 import { listenerStore } from "~/store/zustand/listener/instance";
 import type { RenderLabelContext } from "~/stt/live-segment";
+import { requestMainListenerControl } from "~/stt/window-control";
 
 export {
   getFloatingRouteState,
@@ -218,13 +220,17 @@ function FloatingMeetingWindowSync({
     };
     const refreshCurrentRouteState = (refreshTranscriptBubbles = false) => {
       const state = listenerStore.getState();
+      const effectiveSessionId =
+        state.live.sessionId ?? state.live.pausedSessionId;
       const transcriptBubbles =
         !refreshTranscriptBubbles &&
-        routeState?.sessionId === state.live.sessionId
+        routeState?.sessionId === effectiveSessionId
           ? routeState.transcriptBubbles
           : undefined;
       updateRouteState(
-        state.live.status === "inactive" && !state.live.loading
+        state.live.status === "inactive" &&
+          !state.live.loading &&
+          !state.live.pausedSessionId
           ? getDictationPanelState()
           : enabledRef.current
             ? getCurrentFloatingRouteState(
@@ -258,14 +264,44 @@ function FloatingMeetingWindowSync({
 
     windowsEvents.floatingBarStop
       .listen(() => {
-        if (
-          !enabledRef.current ||
-          routeState?.dictation ||
-          listenerStore.getState().live.status !== "active"
-        )
+        if (!enabledRef.current || routeState?.dictation) {
           return;
-        windowSynchronizer.update(null);
-        listenerStore.getState().stop();
+        }
+        const liveState = listenerStore.getState().live;
+        if (liveState.status === "active") {
+          windowSynchronizer.update(null);
+          listenerStore.getState().stop();
+          return;
+        }
+        if (liveState.pausedSessionId) {
+          const pausedId = liveState.pausedSessionId;
+          listenerStore.getState().clearPaused();
+          windowSynchronizer.update(null);
+          void getEnhancerService()?.requestAutoEnhance(pausedId, "refresh");
+        }
+      })
+      .then((unlisten) => {
+        if (cancelled) {
+          unlisten();
+          return;
+        }
+
+        unlisteners.push(unlisten);
+      });
+
+    windowsEvents.floatingBarTogglePause
+      .listen(() => {
+        if (!enabledRef.current || routeState?.dictation) {
+          return;
+        }
+        const state = listenerStore.getState();
+        if (state.live.status === "active") {
+          state.pause();
+          return;
+        }
+        if (state.live.pausedSessionId) {
+          void requestMainListenerControl("start", state.live.pausedSessionId);
+        }
       })
       .then((unlisten) => {
         if (cancelled) {
@@ -414,6 +450,7 @@ export function haveFloatingRouteInputsChanged(
     state.live.lastError !== previousState.live.lastError ||
     state.live.status !== previousState.live.status ||
     state.live.sessionId !== previousState.live.sessionId ||
+    state.live.pausedSessionId !== previousState.live.pausedSessionId ||
     state.live.loadingPhase !== previousState.live.loadingPhase ||
     state.live.lastErrorIsAudioRelated !==
       previousState.live.lastErrorIsAudioRelated ||
@@ -435,7 +472,7 @@ function getFloatingSessionTitle(
   state: ListenerState,
   meetingData: MeetingFloatData | undefined,
 ) {
-  const sessionId = state.live.sessionId;
+  const sessionId = state.live.sessionId ?? state.live.pausedSessionId;
   if (!sessionId) {
     return null;
   }
@@ -447,11 +484,12 @@ function getFloatingSpeakerLabelContext(
   state: ListenerState,
   meetingData: MeetingFloatData | undefined,
 ): RenderLabelContext | undefined {
-  if (!meetingData || !state.live.sessionId) {
+  const sessionId = state.live.sessionId ?? state.live.pausedSessionId;
+  if (!meetingData || !sessionId) {
     return undefined;
   }
 
-  return createMeetingFloatLabelContext(meetingData, state.live.sessionId);
+  return createMeetingFloatLabelContext(meetingData, sessionId);
 }
 
 function subscribeToAppliedTheme(onStoreChange: () => void) {

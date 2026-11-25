@@ -6,6 +6,9 @@ import XCTest
 @_cdecl("rust_on_floating_bar_stop")
 func rustOnFloatingBarStop() {}
 
+@_cdecl("rust_on_floating_bar_toggle_pause")
+func rustOnFloatingBarTogglePause() {}
+
 @_cdecl("rust_on_floating_bar_open_main")
 func rustOnFloatingBarOpenMain() {}
 

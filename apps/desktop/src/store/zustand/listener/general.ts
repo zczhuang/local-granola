@@ -45,6 +45,8 @@ export type GeneralActions = {
     },
   ) => Promise<boolean>;
   stop: () => void;
+  pause: () => void;
+  clearPaused: () => void;
   attachLiveSession: (
     sessionId: string,
     options?: {
@@ -109,6 +111,7 @@ export const createGeneralSlice = <
       }
 
       setLiveState(set, (live) => {
+        live.pausedSessionId = null;
         markLiveStartRequested(live, targetSessionId);
       });
 
@@ -133,7 +136,26 @@ export const createGeneralSlice = <
     });
   },
   stop: () => {
+    setLiveState(set, (live) => {
+      live.pausedSessionId = null;
+    });
     stopLiveSession(set, get);
+  },
+  pause: () => {
+    const activeSessionId =
+      get().live.status === "active" ? get().live.sessionId : null;
+    if (!activeSessionId) {
+      return;
+    }
+    setLiveState(set, (live) => {
+      live.pausedSessionId = activeSessionId;
+    });
+    stopLiveSession(set, get);
+  },
+  clearPaused: () => {
+    setLiveState(set, (live) => {
+      live.pausedSessionId = null;
+    });
   },
   attachLiveSession: async (sessionId, options) => {
     if (!sessionId) {

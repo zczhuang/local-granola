@@ -16,10 +16,16 @@ export const FLOATING_BAR_CONTROL_RADIUS = 10;
 export const FLOATING_BAR_COMPACT_RADIUS = 14;
 export const FLOATING_BAR_EXPANDED_RADIUS = 21;
 
-export function compactControlsWidth(showsExpand: boolean) {
-  return showsExpand
+export function compactControlsWidth(
+  showsExpand: boolean,
+  showsPause = false,
+) {
+  const base = showsExpand
     ? FLOATING_BAR_COMPACT_STOP_WIDTH +
-        FLOATING_BAR_COMPACT_GAP +
-        FLOATING_BAR_COMPACT_ICON_SIZE
+      FLOATING_BAR_COMPACT_GAP +
+      FLOATING_BAR_COMPACT_ICON_SIZE
     : FLOATING_BAR_COMPACT_SOLO_STOP_WIDTH;
+  return showsPause
+    ? base + FLOATING_BAR_COMPACT_GAP + FLOATING_BAR_COMPACT_ICON_SIZE
+    : base;
 }
