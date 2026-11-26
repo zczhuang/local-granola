@@ -65,58 +65,54 @@ describe("AppIconSelector", () => {
   });
 
   it.each([["system"], ["dark"]])(
-    "applies and stores the selected icon for the %s theme",
+    "applies and stores the selected Oatmeal icon for the %s theme",
     (theme) => {
       mocks.theme = theme;
       render(<AppIconSelector />);
 
       expect(
         screen
-          .getByRole("radio", { name: "Default" })
+          .getByRole("radio", { name: "Classic Oat" })
           .getAttribute("aria-checked"),
       ).toBe("true");
 
-      fireEvent.click(screen.getByRole("radio", { name: "Blueprint" }));
+      fireEvent.click(screen.getByRole("radio", { name: "Obsidian Slate" }));
 
-      expect(mocks.applyAppIconPreference).toHaveBeenCalledWith("dev", theme);
-      expect(mocks.setAppIcon).toHaveBeenCalledWith("dev");
+      expect(mocks.applyAppIconPreference).toHaveBeenCalledWith("stone", theme);
+      expect(mocks.setAppIcon).toHaveBeenCalledWith("stone");
     },
   );
 
-  it("toasts instead of changing icons on the free plan", () => {
+  it("allows selecting any Oatmeal icon without a Pro gate and hides legacy icons", () => {
     mocks.billing.isPro = false;
 
     render(<AppIconSelector />);
 
-    const defaultOption = screen.getByRole("radio", { name: "Default" });
-    const blueprintOption = screen.getByRole("radio", { name: "Blueprint" });
-    expect(defaultOption.getAttribute("aria-disabled")).toBe("false");
-    expect(blueprintOption.getAttribute("aria-disabled")).toBe("true");
+    expect(screen.queryByRole("radio", { name: "Anagram" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "Blueprint" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "Sketch" })).toBeNull();
 
-    fireEvent.click(blueprintOption);
+    const leatherOption = screen.getByRole("radio", {
+      name: "Espresso Leather",
+    });
+    fireEvent.click(leatherOption);
 
-    expect(mocks.toastWarning).toHaveBeenCalledWith(
-      "This requires Oatmeal Pro",
-      {
-        action: {
-          label: "Upgrade",
-          onClick: expect.any(Function),
-        },
-      },
+    expect(mocks.toastWarning).not.toHaveBeenCalled();
+    expect(mocks.applyAppIconPreference).toHaveBeenCalledWith(
+      "journal",
+      "system",
     );
-    expect(mocks.billing.upgradeToPro).not.toHaveBeenCalled();
-    expect(mocks.applyAppIconPreference).not.toHaveBeenCalled();
-    expect(mocks.setAppIcon).not.toHaveBeenCalled();
+    expect(mocks.setAppIcon).toHaveBeenCalledWith("journal");
   });
 
-  it("selects default for an equivalent channel-specific preference", () => {
+  it("selects Classic Oat for an equivalent channel-specific preference", () => {
     mocks.appIcon = "stable";
 
     render(<AppIconSelector />);
 
     expect(
       screen
-        .getByRole("radio", { name: "Default" })
+        .getByRole("radio", { name: "Classic Oat" })
         .getAttribute("aria-checked"),
     ).toBe("true");
     expect(screen.queryByRole("radio", { name: "Production" })).toBeNull();

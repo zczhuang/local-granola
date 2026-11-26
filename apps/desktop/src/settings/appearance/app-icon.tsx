@@ -3,11 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getIdentifier } from "@tauri-apps/api/app";
 import { platform } from "@tauri-apps/plugin-os";
 
-import { CircleNotch, LockSimple } from "@anlg/ui/components/icons";
 import { cn } from "@anlg/utils";
 
-import { useBillingAccess } from "~/auth/billing-context";
-import { useNotifyPlanRequired } from "~/settings/plan-gate";
 import { useSetSettingValue } from "~/settings/queries";
 import { useConfigValue } from "~/shared/config";
 import {
@@ -21,10 +18,6 @@ import type { ThemePreference } from "~/shared/theme/resolve";
 
 const APP_ICON_OPTIONS = [
   "default",
-  "stable",
-  "anagram",
-  "dev",
-  "staging",
   "journal",
   "notepad",
   "stone",
@@ -37,8 +30,6 @@ const PREVIEW_CLASS =
 
 export function AppIconSelector() {
   const { t } = useLingui();
-  const billing = useBillingAccess();
-  const notifyPlanRequired = useNotifyPlanRequired();
   const value = normalizeAppIconPreference(useConfigValue("app_icon"));
   const storedTheme = useConfigValue("theme") as ThemePreference;
   const theme: ThemePreference =
@@ -49,23 +40,15 @@ export function AppIconSelector() {
     queryFn: getIdentifier,
     staleTime: Infinity,
   });
-  const labels = {
-    default: t`Default`,
-    stable: t`Production`,
-    anagram: t`Anagram`,
-    dev: t`Blueprint`,
-    staging: t`Sketch`,
-    journal: t`Field Journal`,
-    notepad: t`Notepad`,
-    stone: t`Stone`,
-    "typewriter-key": t`Typewriter Key`,
-    walnut: t`Walnut`,
+  const labels: Record<(typeof APP_ICON_OPTIONS)[number], string> = {
+    default: "Classic Oat",
+    journal: "Espresso Leather",
+    notepad: "Toasted Honey",
+    stone: "Obsidian Slate",
+    "typewriter-key": "Midnight Cobalt",
+    walnut: "Walnut",
   };
-  const defaultIconName = resolveAppIconName("default", appIdentifier);
   const selectedIconName = resolveAppIconName(value, appIdentifier);
-  const options = APP_ICON_OPTIONS.filter(
-    (option) => option === "default" || option !== defaultIconName,
-  );
 
   if (platform() !== "macos") {
     return null;
@@ -86,12 +69,11 @@ export function AppIconSelector() {
         aria-label={t`App icon`}
         className="flex flex-wrap gap-3"
       >
-        {options.map((option) => {
+        {APP_ICON_OPTIONS.map((option) => {
           const selected =
             resolveAppIconName(option, appIdentifier) === selectedIconName;
           const previewName = resolveAppIconName(option, appIdentifier);
           const hasDarkVariant = hasDarkAppIconVariant(previewName);
-          const locked = !billing.isPro && !selected;
 
           return (
             <button
@@ -99,19 +81,12 @@ export function AppIconSelector() {
               type="button"
               role="radio"
               aria-checked={selected}
-              aria-disabled={locked}
               aria-label={labels[option]}
               title={labels[option]}
-              disabled={locked && billing.isUpgradingToPro}
               className={cn([
-                "group text-foreground focus-visible:ring-ring focus-visible:ring-offset-background relative flex cursor-pointer items-center justify-center rounded-[22px] bg-transparent p-0.5 pb-2.5 transition-transform duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.98] disabled:cursor-wait",
+                "group text-foreground focus-visible:ring-ring focus-visible:ring-offset-background relative flex cursor-pointer items-center justify-center rounded-[22px] bg-transparent p-0.5 pb-2.5 transition-transform duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.98]",
               ])}
               onClick={() => {
-                if (locked) {
-                  notifyPlanRequired("pro");
-                  return;
-                }
-
                 void applyAppIconPreference(option, theme);
                 setAppIcon(option);
               }}
@@ -166,15 +141,6 @@ export function AppIconSelector() {
                   />
                 )}
               </span>
-              {locked ? (
-                <span className="bg-background border-border text-muted-foreground pointer-events-none absolute right-1 bottom-3 flex size-5 items-center justify-center rounded-full border shadow-sm">
-                  {billing.isUpgradingToPro ? (
-                    <CircleNotch className="size-3 animate-spin" aria-hidden />
-                  ) : (
-                    <LockSimple className="size-3" aria-hidden />
-                  )}
-                </span>
-              ) : null}
             </button>
           );
         })}
