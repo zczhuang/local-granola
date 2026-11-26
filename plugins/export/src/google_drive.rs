@@ -145,6 +145,18 @@ struct TokenResponse {
     access_token: String,
     expires_in: Option<i64>,
     refresh_token: Option<String>,
+    scope: Option<String>,
+}
+
+const DRIVE_FILE_SCOPE: &str = "https://www.googleapis.com/auth/drive.file";
+
+fn has_drive_file_scope(scope: Option<&str>) -> bool {
+    scope
+        .map(|s| {
+            s.split_whitespace()
+                .any(|item| item == DRIVE_FILE_SCOPE || item == "https://www.googleapis.com/auth/drive")
+        })
+        .unwrap_or(false)
 }
 
 #[derive(Debug, Deserialize)]
@@ -554,6 +566,13 @@ pub async fn connect(app_data_dir: &Path) -> Result<GoogleDriveSyncStatus, Strin
     let token: TokenResponse = serde_json::from_str(&token_text)
         .map_err(|e| format!("invalid Google token response: {e}"))?;
 
+    if token.scope.is_some() && !has_drive_file_scope(token.scope.as_deref()) {
+        return Err(
+            "Google Drive file permission was not granted. Please click Connect Google Drive again and check the box for Google Drive access on Google's consent screen."
+                .to_string(),
+        );
+    }
+
     let email = fetch_google_email(&http, GOOGLE_USERINFO_URL, &token.access_token)
         .await
         .unwrap_or_else(|_| "Google Drive account".to_string());
@@ -737,6 +756,9 @@ async fn ensure_drive_folder(
 fn format_drive_api_error(action: &str, status: reqwest::StatusCode, body: &str) -> String {
     if body.contains("accessNotConfigured") || body.contains("Google Drive API has not been used") {
         return "Google Drive API is not enabled in your Google Cloud project. Enable 'Google Drive API' in Google Cloud Console and retry.".to_string();
+    }
+    if body.contains("ACCESS_TOKEN_SCOPE_INSUFFICIENT") || body.contains("insufficientPermissions") {
+        return "Google Drive permission wasn't granted during sign-in. Click Disconnect, then Connect Google Drive again and make sure the Google Drive access checkbox is ticked on Google's consent screen.".to_string();
     }
     format!("Failed to {action} ({status}): {body}")
 }
@@ -1291,5 +1313,23 @@ mod tests {
         assert_eq!(report3.uploaded, 0);
         assert_eq!(report3.updated, 1);
         assert_eq!(report3.skipped, 0);
+    }
+
+    #[test]
+    fn validates_drive_file_scope_and_formats_insufficient_scope_error() {
+        assert!(has_drive_file_scope(Some(
+            "email https://www.googleapis.com/auth/drive.file openid"
+        )));
+        assert!(!has_drive_file_scope(Some(
+            "email https://www.googleapis.com/auth/userinfo.email openid"
+        )));
+        assert!(!has_drive_file_scope(None));
+
+        let msg = format_drive_api_error(
+            "query Google Drive folder",
+            reqwest::StatusCode::FORBIDDEN,
+            r#"{"error":{"code":403,"status":"PERMISSION_DENIED","details":[{"reason":"ACCESS_TOKEN_SCOPE_INSUFFICIENT"}]}}"#,
+        );
+        assert!(msg.contains("checkbox is ticked"));
     }
 }
