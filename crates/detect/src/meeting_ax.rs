@@ -35,6 +35,8 @@ mod linux;
 #[cfg(any(test, target_os = "macos", target_os = "linux", target_os = "windows"))]
 mod node;
 #[cfg(any(test, target_os = "macos", target_os = "linux", target_os = "windows"))]
+mod participants;
+#[cfg(any(test, target_os = "macos", target_os = "linux", target_os = "windows"))]
 mod platform;
 mod types;
 #[cfg(target_os = "windows")]
@@ -1127,10 +1129,62 @@ fn native_meeting_root_from_snapshot(
 }
 
 #[cfg(any(test, target_os = "macos", target_os = "linux"))]
+fn zoom_window_has_secondary_call_control(nodes: &[AxNode]) -> bool {
+    nodes.iter().any(|node| {
+        if !matches!(
+            node.role.as_deref(),
+            Some("AXButton") | Some("AXMenuItem") | Some("AXPopUpButton") | Some("AXToolbar")
+        ) || node.enabled == Some(false)
+        {
+            return false;
+        }
+        node_labels(node).any(|label| {
+            let label = label.trim().to_ascii_lowercase();
+            matches!(
+                label.as_str(),
+                "mute"
+                    | "unmute"
+                    | "mute audio"
+                    | "unmute audio"
+                    | "mute my audio"
+                    | "unmute my audio"
+                    | "start video"
+                    | "stop video"
+                    | "participants"
+                    | "share"
+                    | "share screen"
+                    | "stop share"
+                    | "security"
+                    | "reactions"
+                    | "meeting controls"
+            ) || label.starts_with("participants,")
+                || label.starts_with("participants (")
+        })
+    })
+}
+
+#[cfg(any(test, target_os = "macos", target_os = "linux"))]
+fn zoom_window_is_topic_call_window(nodes: &[AxNode]) -> bool {
+    let has_non_dialog_window = nodes.iter().any(|node| {
+        if node.role.as_deref() != Some("AXWindow") {
+            return false;
+        }
+        let title = node.title.as_deref().unwrap_or_default().trim().to_lowercase();
+        !title.is_empty()
+            && !title.contains("settings")
+            && !title.contains("preferences")
+            && title != "leave meeting"
+            && title != "end meeting"
+    });
+    has_non_dialog_window && zoom_window_has_secondary_call_control(nodes)
+}
+
+#[cfg(any(test, target_os = "macos", target_os = "linux"))]
 fn native_meeting_window_is_validated(platform: &MeetingPlatform, nodes: &[AxNode]) -> bool {
     match platform {
         MeetingPlatform::Zoom => {
-            nodes.iter().any(is_zoom_meeting_scope_node)
+            (nodes.iter().any(is_zoom_meeting_scope_node)
+                || zoom_window_is_topic_call_window(nodes))
                 && nodes
                     .iter()
                     .any(|node| is_platform_active_call_control(platform, node))
@@ -1625,6 +1679,16 @@ fn inspect_app(
     let surface = classify_surface(&app.id, &platform);
     let active_call =
         accessibility_trusted && scoped_meeting_is_active(&platform, &nodes, native_scope);
+    let meeting_title = if active_call {
+        participants::extract_meeting_title(&platform, window_title.as_deref(), &nodes)
+    } else {
+        None
+    };
+    let meeting_participants = if active_call {
+        participants::extract_meeting_participants(&platform, &nodes)
+    } else {
+        Vec::new()
+    };
     MeetingAccessibilityInspection {
         active_call,
         app,
@@ -1633,6 +1697,8 @@ fn inspect_app(
         surface,
         accessibility_trusted,
         window_title,
+        meeting_title,
+        participants: meeting_participants,
         remote_screen_share: active_call && nodes_show_remote_screen_share(&nodes),
         warnings,
     }

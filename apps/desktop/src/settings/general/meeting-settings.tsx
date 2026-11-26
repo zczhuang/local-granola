@@ -16,6 +16,7 @@ interface SettingItem {
 
 export function MeetingSettingsView({
   autoJoinScheduledMeetings,
+  autoStartOnMicDetected,
   autoStartScheduledMeetings,
   autoStopMeetings,
   floatingBar,
@@ -24,6 +25,7 @@ export function MeetingSettingsView({
   captureSharedScreens,
 }: {
   autoJoinScheduledMeetings: SettingItem;
+  autoStartOnMicDetected?: SettingItem;
   autoStartScheduledMeetings: SettingItem;
   autoStopMeetings: SettingItem;
   floatingBar: SettingItem;
@@ -70,6 +72,14 @@ export function MeetingSettingsView({
           disabled={!autoStartScheduledMeetings.value}
         />
       </PlanGate>
+      {supportsMicDetection && autoStartOnMicDetected && (
+        <SettingSwitchRow
+          title="Start when call is detected"
+          description="Automatically start listening when Zoom, Google Meet, Teams, or another call begins."
+          checked={autoStartOnMicDetected.value}
+          onChange={autoStartOnMicDetected.onChange}
+        />
+      )}
       {supportsMicDetection && (
         <SettingSwitchRow
           title={<Trans>Stop when meeting ends</Trans>}

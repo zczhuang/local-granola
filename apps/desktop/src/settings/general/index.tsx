@@ -38,6 +38,7 @@ const SETTINGS_FORM_KEYS = [
   "autostart",
   "automatic_updates",
   "auto_join_scheduled_meetings",
+  "auto_start_on_mic_detected",
   "auto_start_scheduled_meetings",
   "auto_stop_meetings",
   "floating_bar_enabled",
@@ -63,6 +64,7 @@ function useSettingsForm(storedSettings: StoredSettingValues) {
       autostart: settingsValue.autostart,
       automatic_updates: settingsValue.automatic_updates,
       auto_join_scheduled_meetings: settingsValue.auto_join_scheduled_meetings,
+      auto_start_on_mic_detected: settingsValue.auto_start_on_mic_detected,
       auto_start_scheduled_meetings:
         settingsValue.auto_start_scheduled_meetings,
       auto_stop_meetings: settingsValue.auto_stop_meetings,
@@ -105,6 +107,7 @@ function useSettingsForm(storedSettings: StoredSettingValues) {
         automatic_updates: normalizedValue.automatic_updates,
         auto_join_scheduled_meetings:
           normalizedValue.auto_join_scheduled_meetings,
+        auto_start_on_mic_detected: normalizedValue.auto_start_on_mic_detected,
         auto_start_scheduled_meetings:
           normalizedValue.auto_start_scheduled_meetings,
         auto_stop_meetings: normalizedValue.auto_stop_meetings,
@@ -323,6 +326,11 @@ function SettingsSectionContent({
                   value: values.auto_join_scheduled_meetings,
                   onChange: (value) =>
                     submitFieldValue("auto_join_scheduled_meetings", value),
+                }}
+                autoStartOnMicDetected={{
+                  value: values.auto_start_on_mic_detected,
+                  onChange: (value) =>
+                    submitFieldValue("auto_start_on_mic_detected", value),
                 }}
                 autoStartScheduledMeetings={{
                   value: values.auto_start_scheduled_meetings,

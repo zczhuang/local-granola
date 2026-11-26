@@ -16,6 +16,7 @@ import { loadSessionContentSnapshot } from "~/session/content-queries";
 import { requestAppAttention } from "~/shared/app-attention";
 import { playCompletionSound } from "~/shared/completion-sound";
 import { hasLiveSessionTitleDraft } from "~/store/zustand/live-title";
+import { isGenericSessionTitle } from "~/stt/meeting-metadata-sync";
 
 const HEARTBEAT_MS = 10_000;
 
@@ -103,7 +104,7 @@ export const runLocalEnhanceSuccess: NonNullable<
   }
 
   if (
-    !snapshot.title.trim() &&
+    isGenericSessionTitle(snapshot.title) &&
     !hasLiveSessionTitleDraft(args.sessionId) &&
     text.trim()
   ) {

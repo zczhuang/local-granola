@@ -9,6 +9,10 @@ import {
 import { executeTransaction, liveQueryClient } from "~/db";
 import { enqueueDatabaseWrite } from "~/db/write-queue";
 import { inspectionShowsActiveMeeting } from "~/stt/meeting-accessibility";
+import {
+  clearSessionMetadataSyncState,
+  syncActiveMeetingMetadata,
+} from "~/stt/meeting-metadata-sync";
 import { getSessionParticipantHumanIds } from "~/stt/queries";
 import {
   appendSpeakerObservation,
@@ -172,6 +176,24 @@ function createCapture(sessionId: string) {
     const inputDevice = available
       ? (device ?? (currentDevice?.status === "ok" ? currentDevice.data : null))
       : null;
+    const selfNames = [row.name, ...aliases].filter(Boolean);
+    await syncActiveMeetingMetadata({
+      sessionId,
+      inspections,
+      micApps,
+      sessionTitle: row.title,
+      selfNames,
+      existingParticipantNames: participants.map((p) => p.name),
+    });
+    const refreshedParticipantIds = await getSessionParticipantHumanIds(sessionId);
+    const refreshedParticipants =
+      refreshedParticipantIds.length !== participantIds.length
+        ? await liveQueryClient.execute<{ human_id: string; name: string }>(
+            `SELECT id AS human_id, name FROM humans WHERE id IN (${refreshedParticipantIds.map(() => "?").join(",")}) AND deleted_at IS NULL ORDER BY id`,
+            refreshedParticipantIds,
+          )
+        : participants;
+    if (stopped || observedGeneration !== generation) return;
     await persist(
       {
         start_ms: at,
@@ -188,8 +210,8 @@ function createCapture(sessionId: string) {
           : null,
         shared_microphone: isSharedMicrophone(inputDevice),
         title: row.title,
-        self_names: [row.name, ...aliases].filter(Boolean),
-        participants,
+        self_names: selfNames,
+        participants: refreshedParticipants,
       },
       at,
       observedGeneration,
@@ -232,6 +254,7 @@ function createCapture(sessionId: string) {
       stopped = true;
       generation++;
       clearInterval(timer);
+      clearSessionMetadataSyncState(sessionId);
       const at = Date.now();
       return persist(null, at).catch(report);
     },

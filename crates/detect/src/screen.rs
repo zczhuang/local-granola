@@ -283,6 +283,8 @@ mod tests {
             surface: crate::MeetingSurface::Native,
             accessibility_trusted: true,
             window_title: Some("Zoom Meeting".to_string()),
+            meeting_title: None,
+            participants: Vec::new(),
             remote_screen_share,
             warnings: Vec::new(),
         }

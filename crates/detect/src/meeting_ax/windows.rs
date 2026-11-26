@@ -555,6 +555,21 @@ pub(super) fn inspect_meeting_accessibility() -> Vec<MeetingAccessibilityInspect
                         .to_string(),
                 );
             }
+            let resolved_title = has_active_call.then_some(title).flatten();
+            let meeting_title = if has_active_call {
+                super::participants::extract_meeting_title(
+                    &platform,
+                    resolved_title.as_deref(),
+                    &nodes,
+                )
+            } else {
+                None
+            };
+            let participants = if has_active_call {
+                super::participants::extract_meeting_participants(&platform, &nodes)
+            } else {
+                Vec::new()
+            };
             Some(MeetingAccessibilityInspection {
                 active_call: has_active_call,
                 app: app.clone(),
@@ -562,7 +577,9 @@ pub(super) fn inspect_meeting_accessibility() -> Vec<MeetingAccessibilityInspect
                 platform,
                 surface,
                 accessibility_trusted: true,
-                window_title: has_active_call.then_some(title).flatten(),
+                window_title: resolved_title,
+                meeting_title,
+                participants,
                 remote_screen_share: has_active_call && nodes_show_remote_screen_share(&nodes),
                 warnings,
             })

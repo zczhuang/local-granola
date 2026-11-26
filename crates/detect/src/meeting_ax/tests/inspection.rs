@@ -109,6 +109,35 @@ fn test_native_meeting_window_validation_is_evidence_backed() {
         &MeetingPlatform::Zoom,
         &current_linux_zoom,
     ));
+    let topic_titled_zoom = [
+        node(40, "AXWindow", "Q4 Roadmap Review", None),
+        node(
+            41,
+            "AXButton",
+            "Mute my audio",
+            Some(AxRect {
+                x: 100.0,
+                y: 792.0,
+                width: 60.0,
+                height: 44.0,
+            }),
+        ),
+        node(
+            42,
+            "AXButton",
+            "Leave",
+            Some(AxRect {
+                x: 1224.0,
+                y: 792.0,
+                width: 78.0,
+                height: 56.0,
+            }),
+        ),
+    ];
+    assert!(native_meeting_window_is_validated(
+        &MeetingPlatform::Zoom,
+        &topic_titled_zoom,
+    ));
     assert!(!native_meeting_window_is_validated(
         &MeetingPlatform::Zoom,
         &[node(6, "AXWindow", "Meeting", None)],

@@ -630,6 +630,16 @@ fn inspection_from_nodes(
         && nodes
             .iter()
             .any(|node| super::is_platform_active_call_control(&platform, node));
+    let meeting_title = if active_call {
+        super::participants::extract_meeting_title(&platform, window_title.as_deref(), &nodes)
+    } else {
+        None
+    };
+    let participants = if active_call {
+        super::participants::extract_meeting_participants(&platform, &nodes)
+    } else {
+        Vec::new()
+    };
     MeetingAccessibilityInspection {
         active_call,
         app,
@@ -638,6 +648,8 @@ fn inspection_from_nodes(
         surface,
         accessibility_trusted,
         window_title,
+        meeting_title,
+        participants,
         remote_screen_share: active_call && super::nodes_show_remote_screen_share(&nodes),
         warnings,
     }
