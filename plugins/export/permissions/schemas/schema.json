@@ -307,6 +307,18 @@
           "markdownDescription": "Denies the connect_google_drive command without any pre-configured scope."
         },
         {
+          "description": "Enables the connect_zoom command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-connect-zoom",
+          "markdownDescription": "Enables the connect_zoom command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the connect_zoom command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-connect-zoom",
+          "markdownDescription": "Denies the connect_zoom command without any pre-configured scope."
+        },
+        {
           "description": "Enables the disconnect_google_drive command without any pre-configured scope.",
           "type": "string",
           "const": "allow-disconnect-google-drive",
@@ -317,6 +329,18 @@
           "type": "string",
           "const": "deny-disconnect-google-drive",
           "markdownDescription": "Denies the disconnect_google_drive command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the disconnect_zoom command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-disconnect-zoom",
+          "markdownDescription": "Enables the disconnect_zoom command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the disconnect_zoom command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-disconnect-zoom",
+          "markdownDescription": "Denies the disconnect_zoom command without any pre-configured scope."
         },
         {
           "description": "Enables the export command without any pre-configured scope.",
@@ -343,6 +367,18 @@
           "markdownDescription": "Denies the get_google_drive_sync_status command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_zoom_sync_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-zoom-sync-status",
+          "markdownDescription": "Enables the get_zoom_sync_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_zoom_sync_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-zoom-sync-status",
+          "markdownDescription": "Denies the get_zoom_sync_status command without any pre-configured scope."
+        },
+        {
           "description": "Enables the save_google_drive_credentials command without any pre-configured scope.",
           "type": "string",
           "const": "allow-save-google-drive-credentials",
@@ -353,6 +389,18 @@
           "type": "string",
           "const": "deny-save-google-drive-credentials",
           "markdownDescription": "Denies the save_google_drive_credentials command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the save_zoom_credentials command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-save-zoom-credentials",
+          "markdownDescription": "Enables the save_zoom_credentials command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the save_zoom_credentials command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-save-zoom-credentials",
+          "markdownDescription": "Denies the save_zoom_credentials command without any pre-configured scope."
         },
         {
           "description": "Enables the sync_notes_to_google_drive command without any pre-configured scope.",
@@ -367,6 +415,18 @@
           "markdownDescription": "Denies the sync_notes_to_google_drive command without any pre-configured scope."
         },
         {
+          "description": "Enables the sync_zoom_meetings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-sync-zoom-meetings",
+          "markdownDescription": "Enables the sync_zoom_meetings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the sync_zoom_meetings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-sync-zoom-meetings",
+          "markdownDescription": "Denies the sync_zoom_meetings command without any pre-configured scope."
+        },
+        {
           "description": "Enables the update_google_drive_sync_config command without any pre-configured scope.",
           "type": "string",
           "const": "allow-update-google-drive-sync-config",
@@ -379,10 +439,22 @@
           "markdownDescription": "Denies the update_google_drive_sync_config command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-export`\n- `allow-get-google-drive-sync-status`\n- `allow-save-google-drive-credentials`\n- `allow-connect-google-drive`\n- `allow-disconnect-google-drive`\n- `allow-update-google-drive-sync-config`\n- `allow-sync-notes-to-google-drive`",
+          "description": "Enables the update_zoom_sync_config command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-zoom-sync-config",
+          "markdownDescription": "Enables the update_zoom_sync_config command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_zoom_sync_config command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-zoom-sync-config",
+          "markdownDescription": "Denies the update_zoom_sync_config command without any pre-configured scope."
+        },
+        {
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-export`\n- `allow-get-google-drive-sync-status`\n- `allow-save-google-drive-credentials`\n- `allow-connect-google-drive`\n- `allow-disconnect-google-drive`\n- `allow-update-google-drive-sync-config`\n- `allow-sync-notes-to-google-drive`\n- `allow-get-zoom-sync-status`\n- `allow-save-zoom-credentials`\n- `allow-connect-zoom`\n- `allow-disconnect-zoom`\n- `allow-update-zoom-sync-config`\n- `allow-sync-zoom-meetings`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-export`\n- `allow-get-google-drive-sync-status`\n- `allow-save-google-drive-credentials`\n- `allow-connect-google-drive`\n- `allow-disconnect-google-drive`\n- `allow-update-google-drive-sync-config`\n- `allow-sync-notes-to-google-drive`"
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-export`\n- `allow-get-google-drive-sync-status`\n- `allow-save-google-drive-credentials`\n- `allow-connect-google-drive`\n- `allow-disconnect-google-drive`\n- `allow-update-google-drive-sync-config`\n- `allow-sync-notes-to-google-drive`\n- `allow-get-zoom-sync-status`\n- `allow-save-zoom-credentials`\n- `allow-connect-zoom`\n- `allow-disconnect-zoom`\n- `allow-update-zoom-sync-config`\n- `allow-sync-zoom-meetings`"
         }
       ]
     }

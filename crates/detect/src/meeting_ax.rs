@@ -1689,6 +1689,11 @@ fn inspect_app(
     } else {
         Vec::new()
     };
+    let active_speaker = if active_call {
+        participants::extract_active_speaker(&platform, &nodes)
+    } else {
+        None
+    };
     MeetingAccessibilityInspection {
         active_call,
         app,
@@ -1699,6 +1704,7 @@ fn inspect_app(
         window_title,
         meeting_title,
         participants: meeting_participants,
+        active_speaker,
         remote_screen_share: active_call && nodes_show_remote_screen_share(&nodes),
         warnings,
     }

@@ -570,6 +570,11 @@ pub(super) fn inspect_meeting_accessibility() -> Vec<MeetingAccessibilityInspect
             } else {
                 Vec::new()
             };
+            let active_speaker = if has_active_call {
+                super::participants::extract_active_speaker(&platform, &nodes)
+            } else {
+                None
+            };
             Some(MeetingAccessibilityInspection {
                 active_call: has_active_call,
                 app: app.clone(),
@@ -580,6 +585,7 @@ pub(super) fn inspect_meeting_accessibility() -> Vec<MeetingAccessibilityInspect
                 window_title: resolved_title,
                 meeting_title,
                 participants,
+                active_speaker,
                 remote_screen_share: has_active_call && nodes_show_remote_screen_share(&nodes),
                 warnings,
             })

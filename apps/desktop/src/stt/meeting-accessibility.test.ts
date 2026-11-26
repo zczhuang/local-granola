@@ -15,6 +15,7 @@ const activeInspection = {
   windowTitle: "Meet - abc-defg-hij",
   meetingTitle: null,
   participants: [],
+  activeSpeaker: null,
   remoteScreenShare: false,
   warnings: [],
 };

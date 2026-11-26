@@ -21,6 +21,7 @@ function makeInspection(
     windowTitle: "Q4 Planning - Zoom",
     meetingTitle: "Q4 Planning",
     participants: ["Ada Lovelace", "Grace Hopper"],
+    activeSpeaker: null,
     remoteScreenShare: false,
     warnings: [],
     ...overrides,

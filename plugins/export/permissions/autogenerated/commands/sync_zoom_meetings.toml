@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-sync-zoom-meetings"
+description = "Enables the sync_zoom_meetings command without any pre-configured scope."
+commands.allow = ["sync_zoom_meetings"]
+
+[[permission]]
+identifier = "deny-sync-zoom-meetings"
+description = "Denies the sync_zoom_meetings command without any pre-configured scope."
+commands.deny = ["sync_zoom_meetings"]

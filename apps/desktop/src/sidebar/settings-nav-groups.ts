@@ -97,6 +97,9 @@ export function useSettingsNavGroups(): SettingsNavGroup[] {
           icon: ArrowsClockwise,
           searchTerms: [
             t`Google Drive`,
+            "Zoom",
+            "Zoom OAuth",
+            "Zoom meetings",
             t`Cloud sync`,
             t`Devices`,
             t`Sync now`,

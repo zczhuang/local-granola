@@ -39,6 +39,7 @@ import { E2eeSetupDialog } from "../general/e2ee-setup";
 import { GoogleDriveSyncSettings } from "./google-drive";
 import { SyncHealthSection } from "./health";
 import { SyncLog } from "./log";
+import { ZoomSyncSettings } from "./zoom";
 
 import { trackAnalyticsEvent } from "~/analytics";
 import { useAuth } from "~/auth";
@@ -288,7 +289,12 @@ function SyncSettingsPreview() {
 
 export function SettingsSync() {
   if (LOCAL_ONLY) {
-    return <GoogleDriveSyncSettings />;
+    return (
+      <div className="flex flex-col gap-8">
+        <GoogleDriveSyncSettings />
+        <ZoomSyncSettings />
+      </div>
+    );
   }
 
   return <CloudSettingsSync />;

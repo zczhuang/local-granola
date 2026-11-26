@@ -62,7 +62,10 @@ export function parseSpeakerContext(
               person &&
               typeof person.human_id === "string" &&
               typeof person.name === "string",
-          ),
+          ) &&
+          (item.active_speaker === undefined ||
+            item.active_speaker === null ||
+            typeof item.active_speaker === "string"),
       ),
     };
     if (meetings.length) Object.assign(context, { meetings });

@@ -23,8 +23,10 @@ import {
 } from "~/stt/speaker-context";
 
 const captures = new Map<string, ReturnType<typeof createCapture>>();
-const POLL_MS = 5_000;
+const IDLE_POLL_MS = 5_000;
+const ACTIVE_CALL_POLL_MS = 1_500;
 const EVIDENCE_LEASE_MS = 10_000;
+const ACTIVE_SPEAKER_LEASE_MS = 3_500;
 // Apps a scheduled meeting link can be joined from; browsers cover Meet and web clients.
 const MEETING_CAPABLE_MIC_APP =
   /zoom|teams|slack|webex|chrome|chromium|safari|thebrowser|aside|firefox|brave|edge|vivaldi|opera/i;
@@ -177,6 +179,17 @@ function createCapture(sessionId: string) {
       ? (device ?? (currentDevice?.status === "ok" ? currentDevice.data : null))
       : null;
     const selfNames = [row.name, ...aliases].filter(Boolean);
+    const selfNameSet = new Set(
+      selfNames.map((name) => name.trim().toLowerCase()).filter(Boolean),
+    );
+    const activeSpeakerRaw =
+      active
+        .map((inspection) => inspection.activeSpeaker?.trim() ?? "")
+        .find(
+          (name) =>
+            name.length >= 2 && !selfNameSet.has(name.toLowerCase()),
+        ) ?? null;
+
     await syncActiveMeetingMetadata({
       sessionId,
       inspections,
@@ -197,7 +210,8 @@ function createCapture(sessionId: string) {
     await persist(
       {
         start_ms: at,
-        end_ms: at + EVIDENCE_LEASE_MS,
+        end_ms:
+          at + (activeSpeakerRaw ? ACTIVE_SPEAKER_LEASE_MS : EVIDENCE_LEASE_MS),
         active_call: callAppId !== null,
         calendar_call: calendarCall,
         // A headset is isolated by construction; for anything else the runtime verdict
@@ -212,9 +226,22 @@ function createCapture(sessionId: string) {
         title: row.title,
         self_names: selfNames,
         participants: refreshedParticipants,
+        ...(activeSpeakerRaw ? { active_speaker: activeSpeakerRaw } : {}),
       },
       at,
       observedGeneration,
+    );
+  };
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const scheduleNext = () => {
+    if (stopped) return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(
+      () => {
+        timer = null;
+        schedule();
+      },
+      callAppId !== null ? ACTIVE_CALL_POLL_MS : IDLE_POLL_MS,
     );
   };
   const schedule = () => {
@@ -226,10 +253,11 @@ function createCapture(sessionId: string) {
         if (repoll) {
           repoll = false;
           schedule();
+        } else {
+          scheduleNext();
         }
       });
   };
-  const timer = setInterval(schedule, POLL_MS);
   schedule();
   return {
     microphone(update: {
@@ -253,7 +281,10 @@ function createCapture(sessionId: string) {
     stop() {
       stopped = true;
       generation++;
-      clearInterval(timer);
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
       clearSessionMetadataSyncState(sessionId);
       const at = Date.now();
       return persist(null, at).catch(report);

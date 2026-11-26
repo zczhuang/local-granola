@@ -10,4 +10,10 @@ pub(crate) const COMMANDS: &[&str] = &[
     "disconnect_google_drive",
     "update_google_drive_sync_config",
     "sync_notes_to_google_drive",
+    "get_zoom_sync_status",
+    "save_zoom_credentials",
+    "connect_zoom",
+    "disconnect_zoom",
+    "update_zoom_sync_config",
+    "sync_zoom_meetings",
 ];

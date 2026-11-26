@@ -269,6 +269,88 @@ pub(super) fn extract_meeting_participants(
     participants
 }
 
+/// Extracts the currently active remote speaker highlighted by Zoom, Google Meet, Microsoft Teams,
+/// or Webex in the Accessibility tree (e.g., "Talking: Ada Lovelace", "Ada Lovelace is speaking",
+/// or a video tile annotated with ", talking" / ", speaking"). Self ("Me"/"You") is excluded.
+pub(super) fn extract_active_speaker(
+    platform: &MeetingPlatform,
+    nodes: &[AxNode],
+) -> Option<String> {
+    if *platform == MeetingPlatform::Unknown || nodes.is_empty() {
+        return None;
+    }
+
+    for node in nodes {
+        if node.within_zoom_chat_scope {
+            continue;
+        }
+        for label in node_labels(node) {
+            if let Some(raw_name) = extract_active_speaker_from_label(label)
+                && let Some(cleaned) = clean_participant_name(&raw_name)
+            {
+                return Some(cleaned);
+            }
+        }
+    }
+
+    None
+}
+
+fn extract_active_speaker_from_label(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() || trimmed.len() > 160 {
+        return None;
+    }
+
+    // Explicit active-speaker banners/badges (Zoom top bar "Talking: Name", Meet/Teams live indicator)
+    for prefix in [
+        "talking: ",
+        "speaking: ",
+        "active speaker: ",
+        "now speaking: ",
+        "currently speaking: ",
+    ] {
+        if let Some(rest) = strip_prefix_ci(trimmed, prefix) {
+            return Some(strip_status_tail(rest));
+        }
+    }
+    for suffix in [
+        " is talking",
+        " is speaking",
+        " is currently speaking",
+        " is currently talking",
+    ] {
+        if let Some(prefix) = strip_suffix_ci(trimmed, suffix) {
+            let without_render = strip_prefix_ci(prefix.trim(), "video render ").unwrap_or(prefix);
+            return Some(strip_status_tail(without_render));
+        }
+    }
+
+    // Video/participant tile whose status tail explicitly marks them as talking/speaking
+    // e.g. "Video render Ada Lovelace, Computer audio unmuted, talking"
+    //      "Ada Lovelace (Host), speaking"
+    //      "Ada Lovelace, active speaker"
+    let without_render = strip_prefix_ci(trimmed, "video render ").unwrap_or(trimmed);
+    if let Some((head, tail)) = split_first_comma_outside_parens(without_render) {
+        let has_speaking_token = tail.split(',').any(|segment| {
+            let seg = segment.trim().to_ascii_lowercase();
+            seg == "talking"
+                || seg == "speaking"
+                || seg == "active speaker"
+                || seg == "currently speaking"
+                || seg.starts_with("talking ")
+                || seg.starts_with("speaking ")
+                || seg.ends_with(" is talking")
+                || seg.ends_with(" is speaking")
+        });
+        if has_speaking_token {
+            return Some(head.trim().to_string());
+        }
+    }
+
+    None
+}
+
 fn is_participant_list_container(node: &AxNode) -> bool {
     if !matches!(
         node.role.as_deref(),
@@ -765,6 +847,49 @@ mod tests {
         assert_eq!(
             extract_meeting_participants(&MeetingPlatform::GoogleMeet, &meet_nodes),
             vec!["Priya Nair".to_string(), "Sam Altman".to_string()]
+        );
+    }
+
+    #[test]
+    fn extracts_active_speaker_from_zoom_meet_and_teams_cues() {
+        let zoom_banner = vec![
+            test_node(0, "AXStaticText", "Talking: Ada Lovelace", &[0]),
+            test_node(1, "AXGroup", "John Jeong, Computer audio muted", &[1]),
+        ];
+        assert_eq!(
+            extract_active_speaker(&MeetingPlatform::Zoom, &zoom_banner),
+            Some("Ada Lovelace".to_string())
+        );
+
+        let zoom_tile = vec![
+            test_node(
+                0,
+                "AXGroup",
+                "Video render Grace Hopper (Co-host), Computer audio unmuted, talking",
+                &[0],
+            ),
+            test_node(
+                1,
+                "AXGroup",
+                "Stuart Chuang (Host, me), Computer audio unmuted, talking",
+                &[1],
+            ),
+        ];
+        assert_eq!(
+            extract_active_speaker(&MeetingPlatform::Zoom, &zoom_tile),
+            Some("Grace Hopper".to_string())
+        );
+
+        let self_only = vec![test_node(0, "AXStaticText", "Talking: You", &[0])];
+        assert_eq!(
+            extract_active_speaker(&MeetingPlatform::Zoom, &self_only),
+            None
+        );
+
+        let teams_speaking = vec![test_node(0, "AXGroup", "Linus Torvalds is speaking", &[0])];
+        assert_eq!(
+            extract_active_speaker(&MeetingPlatform::MicrosoftTeams, &teams_speaking),
+            Some("Linus Torvalds".to_string())
         );
     }
 }

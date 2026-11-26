@@ -8,4 +8,10 @@ permissions = [
   "allow-disconnect-google-drive",
   "allow-update-google-drive-sync-config",
   "allow-sync-notes-to-google-drive",
+  "allow-get-zoom-sync-status",
+  "allow-save-zoom-credentials",
+  "allow-connect-zoom",
+  "allow-disconnect-zoom",
+  "allow-update-zoom-sync-config",
+  "allow-sync-zoom-meetings",
 ]

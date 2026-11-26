@@ -61,6 +61,54 @@ async syncNotesToGoogleDrive(sessionId: string | null) : Promise<Result<GoogleDr
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async getZoomSyncStatus() : Promise<Result<ZoomSyncStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:export|get_zoom_sync_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async saveZoomCredentials(clientId: string, clientSecret: string | null) : Promise<Result<ZoomSyncStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:export|save_zoom_credentials", { clientId, clientSecret }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async connectZoom() : Promise<Result<ZoomSyncStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:export|connect_zoom") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async disconnectZoom() : Promise<Result<ZoomSyncStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:export|disconnect_zoom") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateZoomSyncConfig(config: ZoomSyncConfig) : Promise<Result<ZoomSyncStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:export|update_zoom_sync_config", { config }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async syncZoomMeetings(sessionId: string | null) : Promise<Result<ZoomSyncReport, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:export|sync_zoom_meetings", { sessionId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -82,6 +130,10 @@ export type GoogleDriveSyncReport = { uploaded: number; updated: number; skipped
 export type GoogleDriveSyncStatus = { configured: boolean; credentialsSource: string; clientIdHint: string | null; connected: boolean; email: string | null; rootFolderId: string | null; rootFolderUrl: string | null; syncedCount: number; lastSyncedAtMs: number | null; lastError: string | null; config: GoogleDriveSyncConfig }
 export type Transcript = { items: TranscriptItem[] }
 export type TranscriptItem = { speaker: string | null; text: string }
+export type ZoomMeetingPreview = { meetingId: string; topic: string; startTime: string | null; joinUrl: string | null; participantCount: number }
+export type ZoomSyncConfig = { autoSync: boolean; syncCalendarEvents: boolean; enrichSessions: boolean }
+export type ZoomSyncReport = { meetingsSynced: number; eventsUpserted: number; sessionsEnriched: number; participantsAdded: number; syncedAtMs: number; errors: string[] }
+export type ZoomSyncStatus = { configured: boolean; clientIdHint: string | null; redirectUri: string; connected: boolean; email: string | null; displayName: string | null; syncedMeetingsCount: number; enrichedSessionsCount: number; lastSyncedAtMs: number | null; lastError: string | null; config: ZoomSyncConfig; upcomingMeetings: ZoomMeetingPreview[] }
 
 /** tauri-specta globals **/
 

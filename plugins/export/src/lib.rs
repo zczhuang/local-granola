@@ -2,6 +2,7 @@ mod commands;
 mod ext;
 pub mod google_drive;
 mod manifest;
+pub mod zoom;
 pub use anlg_export_core::{
     Error, ExportInput, ExportMetadata, Result, Transcript, TranscriptItem,
 };
@@ -9,6 +10,7 @@ pub use ext::*;
 pub use google_drive::{
     GoogleDriveSyncConfig, GoogleDriveSyncFormat, GoogleDriveSyncReport, GoogleDriveSyncStatus,
 };
+pub use zoom::{ZoomMeetingPreview, ZoomSyncConfig, ZoomSyncReport, ZoomSyncStatus};
 
 const PLUGIN_NAME: &str = "export";
 
@@ -23,6 +25,12 @@ fn make_specta_builder<R: tauri::Runtime>() -> tauri_specta::Builder<R> {
             commands::disconnect_google_drive::<tauri::Wry>,
             commands::update_google_drive_sync_config::<tauri::Wry>,
             commands::sync_notes_to_google_drive::<tauri::Wry>,
+            commands::get_zoom_sync_status::<tauri::Wry>,
+            commands::save_zoom_credentials::<tauri::Wry>,
+            commands::connect_zoom::<tauri::Wry>,
+            commands::disconnect_zoom::<tauri::Wry>,
+            commands::update_zoom_sync_config::<tauri::Wry>,
+            commands::sync_zoom_meetings::<tauri::Wry>,
         ])
         .error_handling(tauri_specta::ErrorHandlingMode::Result)
 }

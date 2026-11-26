@@ -16,6 +16,7 @@ fn context() -> SpeakerContext {
             title: "지헌 🤝 덕행".into(),
             self_names: vec!["지헌".into()],
             participants: vec![],
+            active_speaker: None,
         }],
         meetings: vec![],
     }
@@ -551,4 +552,217 @@ fn assigned_speakers_stay_merged_across_context_intervals() {
         serde_json::to_value(saved).unwrap(),
         serde_json::to_value(preview).unwrap()
     );
+}
+
+#[test]
+fn multi_speaker_zoom_active_speaker_splits_non_diarized_remote_turns_with_cue_lag() {
+    let participants = vec![
+        RenderTranscriptHuman {
+            human_id: "h-ada".into(),
+            name: "Ada Lovelace".into(),
+        },
+        RenderTranscriptHuman {
+            human_id: "h-grace".into(),
+            name: "Grace Hopper".into(),
+        },
+        RenderTranscriptHuman {
+            human_id: "h-linus".into(),
+            name: "Linus Torvalds".into(),
+        },
+    ];
+    let ctx = SpeakerContext {
+        intervals: vec![
+            SpeakerContextInterval {
+                start_ms: 10_000,
+                end_ms: 15_000,
+                active_call: true,
+                calendar_call: false,
+                mic_isolated: Some(true),
+                shared_microphone: false,
+                title: "Engineering Sync".into(),
+                self_names: vec!["Stuart Chuang".into()],
+                participants: participants.clone(),
+                active_speaker: Some("Ada Lovelace".into()),
+            },
+            SpeakerContextInterval {
+                start_ms: 15_000,
+                end_ms: 20_000,
+                active_call: true,
+                calendar_call: false,
+                mic_isolated: Some(true),
+                shared_microphone: false,
+                title: "Engineering Sync".into(),
+                self_names: vec!["Stuart Chuang".into()],
+                participants: participants.clone(),
+                active_speaker: Some("Grace Hopper".into()),
+            },
+        ],
+        meetings: vec![],
+    };
+
+    // Started at 10_000ms. Words at 0..3000ms (with +1200ms cue lag -> 11_200..14_200ms) fall in
+    // Ada's active-speaker window; words at 4200..7000ms (+1200ms -> 15_400..18_200ms) fall in Grace's.
+    let req = RenderTranscriptRequest {
+        speaker_context: Some(ctx),
+        preview: None,
+        participant_human_ids: vec!["h-ada".into(), "h-grace".into(), "h-linus".into()],
+        self_human_id: Some("self".into()),
+        humans: vec![
+            RenderTranscriptHuman {
+                human_id: "self".into(),
+                name: "Stuart Chuang".into(),
+            },
+            participants[0].clone(),
+            participants[1].clone(),
+            participants[2].clone(),
+        ],
+        transcripts: vec![RenderTranscriptInput {
+            started_at: Some(10_000),
+            assignments: vec![],
+            words: vec![
+                RenderTranscriptWordInput {
+                    id: "w1".into(),
+                    text: "Hello ".into(),
+                    start_ms: 500,
+                    end_ms: 1_500,
+                    channel: 1,
+                    speaker_index: None,
+                    synthetic_timing: None,
+                },
+                RenderTranscriptWordInput {
+                    id: "w2".into(),
+                    text: "team ".into(),
+                    start_ms: 1_600,
+                    end_ms: 2_600,
+                    channel: 1,
+                    speaker_index: None,
+                    synthetic_timing: None,
+                },
+                RenderTranscriptWordInput {
+                    id: "w3".into(),
+                    text: "sounds ".into(),
+                    start_ms: 4_500,
+                    end_ms: 5_500,
+                    channel: 1,
+                    speaker_index: None,
+                    synthetic_timing: None,
+                },
+                RenderTranscriptWordInput {
+                    id: "w4".into(),
+                    text: "good".into(),
+                    start_ms: 5_600,
+                    end_ms: 6_600,
+                    channel: 1,
+                    speaker_index: None,
+                    synthetic_timing: None,
+                },
+            ],
+        }],
+    };
+
+    let segments = render_transcript_segments(req);
+    assert_eq!(segments.len(), 2);
+    assert_eq!(segments[0].speaker_label, "Ada Lovelace");
+    assert_eq!(
+        segments[0]
+            .provisional_speaker
+            .as_ref()
+            .and_then(|s| s.human_id.as_deref()),
+        Some("h-ada")
+    );
+    assert_eq!(segments[1].speaker_label, "Grace Hopper");
+    assert_eq!(
+        segments[1]
+            .provisional_speaker
+            .as_ref()
+            .and_then(|s| s.human_id.as_deref()),
+        Some("h-grace")
+    );
+}
+
+#[test]
+fn multi_speaker_zoom_active_speaker_votes_diarized_voices() {
+    let participants = vec![
+        RenderTranscriptHuman {
+            human_id: "h-ada".into(),
+            name: "Ada Lovelace".into(),
+        },
+        RenderTranscriptHuman {
+            human_id: "h-grace".into(),
+            name: "Grace Hopper".into(),
+        },
+    ];
+    let ctx = SpeakerContext {
+        intervals: vec![
+            SpeakerContextInterval {
+                start_ms: 10_000,
+                end_ms: 16_000,
+                active_call: true,
+                calendar_call: false,
+                mic_isolated: Some(true),
+                shared_microphone: false,
+                title: "Engineering Sync".into(),
+                self_names: vec!["Stuart Chuang".into()],
+                participants: participants.clone(),
+                active_speaker: Some("Ada Lovelace".into()),
+            },
+            SpeakerContextInterval {
+                start_ms: 16_000,
+                end_ms: 22_000,
+                active_call: true,
+                calendar_call: false,
+                mic_isolated: Some(true),
+                shared_microphone: false,
+                title: "Engineering Sync".into(),
+                self_names: vec!["Stuart Chuang".into()],
+                participants: participants.clone(),
+                active_speaker: Some("Grace Hopper".into()),
+            },
+        ],
+        meetings: vec![],
+    };
+
+    let req = RenderTranscriptRequest {
+        speaker_context: Some(ctx),
+        preview: None,
+        participant_human_ids: vec!["h-ada".into(), "h-grace".into()],
+        self_human_id: Some("self".into()),
+        humans: vec![
+            RenderTranscriptHuman {
+                human_id: "self".into(),
+                name: "Stuart Chuang".into(),
+            },
+            participants[0].clone(),
+            participants[1].clone(),
+        ],
+        transcripts: vec![RenderTranscriptInput {
+            started_at: Some(10_000),
+            assignments: vec![],
+            words: vec![
+                RenderTranscriptWordInput {
+                    id: "w1".into(),
+                    text: "Voice zero speaking ".into(),
+                    start_ms: 500,
+                    end_ms: 2_500,
+                    channel: 1,
+                    speaker_index: Some(0),
+                    synthetic_timing: None,
+                },
+                RenderTranscriptWordInput {
+                    id: "w2".into(),
+                    text: "Voice one replying".into(),
+                    start_ms: 6_000,
+                    end_ms: 8_000,
+                    channel: 1,
+                    speaker_index: Some(1),
+                    synthetic_timing: None,
+                },
+            ],
+        }],
+    };
+
+    let segments = render_transcript_segments(req);
+    assert_eq!(segments.len(), 2);
+    assert_eq!(segments[0].speaker_label, "Ada Lovelace");
+    assert_eq!(segments[1].speaker_label, "Grace Hopper");
 }

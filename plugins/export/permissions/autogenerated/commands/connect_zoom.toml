@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-connect-zoom"
+description = "Enables the connect_zoom command without any pre-configured scope."
+commands.allow = ["connect_zoom"]
+
+[[permission]]
+identifier = "deny-connect-zoom"
+description = "Denies the connect_zoom command without any pre-configured scope."
+commands.deny = ["connect_zoom"]

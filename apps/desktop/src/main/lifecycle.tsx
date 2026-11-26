@@ -20,6 +20,7 @@ import { FolderDefaultAccessRunner } from "~/session-sharing/folder-default-acce
 import { OwnedSharedNotePublisher } from "~/session-sharing/sync";
 import { useNotifyPlanRequired } from "~/settings/plan-gate";
 import { GoogleDriveAutoSyncLifecycle } from "~/settings/sync/google-drive-auto-sync";
+import { ZoomAutoSyncLifecycle } from "~/settings/sync/zoom-auto-sync";
 import { SharedAttachmentCacheLifecycle } from "~/shared-notes/attachment-cache-lifecycle";
 import { SharedNotePreviewAuthLifecycle } from "~/shared-notes/preview";
 import { DurableSharedNoteCacheSync } from "~/shared-notes/sync";
@@ -77,6 +78,7 @@ export function ClassicMainServices() {
       <ToolRegistration />
       <EnhancerInit />
       <GoogleDriveAutoSyncLifecycle />
+      <ZoomAutoSyncLifecycle />
     </>
   );
 }

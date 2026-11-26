@@ -6,6 +6,7 @@ use crate::ExportPluginExt;
 use crate::google_drive::{
     self, GoogleDriveSyncConfig, GoogleDriveSyncReport, GoogleDriveSyncStatus,
 };
+use crate::zoom::{self, ZoomSyncConfig, ZoomSyncReport, ZoomSyncStatus};
 
 fn app_data_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     app.path()
@@ -82,4 +83,63 @@ pub(crate) async fn sync_notes_to_google_drive<R: tauri::Runtime>(
     let dir = app_data_dir(&app)?;
     let db = app.state::<tauri_plugin_db::ManagedState>();
     google_drive::sync_notes(db.pool(), &dir, session_id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn get_zoom_sync_status<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<ZoomSyncStatus, String> {
+    let dir = app_data_dir(&app)?;
+    zoom::get_status(&dir)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn save_zoom_credentials<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    client_id: String,
+    client_secret: Option<String>,
+) -> Result<ZoomSyncStatus, String> {
+    let dir = app_data_dir(&app)?;
+    zoom::save_credentials(&dir, &client_id, client_secret.as_deref())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn connect_zoom<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<ZoomSyncStatus, String> {
+    let dir = app_data_dir(&app)?;
+    zoom::connect(&dir).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn disconnect_zoom<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<ZoomSyncStatus, String> {
+    let dir = app_data_dir(&app)?;
+    zoom::disconnect(&dir)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn update_zoom_sync_config<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    config: ZoomSyncConfig,
+) -> Result<ZoomSyncStatus, String> {
+    let dir = app_data_dir(&app)?;
+    zoom::update_config(&dir, config)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn sync_zoom_meetings<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    session_id: Option<String>,
+) -> Result<ZoomSyncReport, String> {
+    let dir = app_data_dir(&app)?;
+    let db = app.state::<tauri_plugin_db::ManagedState>();
+    zoom::sync_meetings(db.pool(), &dir, session_id).await
 }

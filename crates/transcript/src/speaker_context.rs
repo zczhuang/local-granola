@@ -15,6 +15,13 @@ pub struct SpeakerContext {
     pub meetings: Vec<MeetingSpeakerEvidence>,
 }
 
+/// Typical lag between remote speech audio and Zoom/Meet/Teams Accessibility active-speaker highlight.
+const ACTIVE_SPEAKER_CUE_LAG_MS: i64 = 1_200;
+/// Minimum share of voted speech required to lock a diarized voice to one active speaker.
+const INTERVAL_ACTIVE_SPEAKER_MIN_SHARE: f64 = 0.6;
+/// Minimum voted speech duration (ms) to lock a diarized voice via Accessibility active-speaker cues.
+const INTERVAL_ACTIVE_SPEAKER_MIN_MS: i64 = 1_000;
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct SpeakerContextInterval {
     pub start_ms: i64,
@@ -26,6 +33,8 @@ pub struct SpeakerContextInterval {
     pub title: String,
     pub self_names: Vec<String>,
     pub participants: Vec<RenderTranscriptHuman>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_speaker: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -134,6 +143,120 @@ impl SpeakerContext {
         None
     }
 
+    fn active_speaker_at(
+        &self,
+        start_ms: i64,
+        end_ms: i64,
+        self_human_id: Option<&str>,
+        humans: &[RenderTranscriptHuman],
+    ) -> Option<(String, Option<String>)> {
+        let mid_ms = start_ms.saturating_add(end_ms.saturating_sub(start_ms) / 2);
+        let shifted_ms = mid_ms.saturating_add(ACTIVE_SPEAKER_CUE_LAG_MS);
+
+        let find_at = |probe_ms: i64| {
+            self.intervals.iter().find(|interval| {
+                interval.active_call
+                    && interval.start_ms <= probe_ms
+                    && probe_ms <= interval.end_ms
+                    && interval.start_ms < interval.end_ms
+                    && interval
+                        .active_speaker
+                        .as_deref()
+                        .is_some_and(|s| !s.trim().is_empty())
+            })
+        };
+
+        let interval = find_at(shifted_ms).or_else(|| find_at(mid_ms))?;
+        let raw_name = interval.active_speaker.as_deref()?.trim();
+        if raw_name.is_empty() {
+            return None;
+        }
+        let lower = raw_name.to_lowercase();
+        if interval
+            .self_names
+            .iter()
+            .any(|alias| !alias.trim().is_empty() && alias.trim().to_lowercase() == lower)
+        {
+            return None;
+        }
+
+        let matched = interval
+            .participants
+            .iter()
+            .chain(humans.iter())
+            .find(|person| {
+                !person.human_id.is_empty()
+                    && self_human_id != Some(person.human_id.as_str())
+                    && person.name.trim().to_lowercase() == lower
+            });
+
+        Some(match matched {
+            Some(person) => (person.name.trim().to_owned(), Some(person.human_id.clone())),
+            None => (raw_name.to_owned(), None),
+        })
+    }
+
+    fn vote_diarized_active_speakers(
+        &self,
+        segments: &[RenderedTranscriptSegment],
+        started_at: i64,
+        self_human_id: Option<&str>,
+        humans: &[RenderTranscriptHuman],
+    ) -> HashMap<i32, ProvisionalSpeakerLabel> {
+        let mut votes: HashMap<i32, HashMap<String, (i64, String, Option<String>)>> =
+            HashMap::new();
+        for segment in segments {
+            if !is_unassigned_remote(&segment.key) {
+                continue;
+            }
+            let Some(speaker_index) = segment.key.speaker_index else {
+                continue;
+            };
+            for word in &segment.words {
+                let dur = word.end_ms.saturating_sub(word.start_ms).max(1);
+                if let Some((name, human_id)) = self.active_speaker_at(
+                    started_at.saturating_add(word.start_ms),
+                    started_at.saturating_add(word.end_ms),
+                    self_human_id,
+                    humans,
+                ) {
+                    let key = name.to_lowercase();
+                    let entry = votes
+                        .entry(speaker_index)
+                        .or_default()
+                        .entry(key)
+                        .or_insert_with(|| (0, name.clone(), human_id.clone()));
+                    entry.0 = entry.0.saturating_add(dur);
+                    if entry.2.is_none() && human_id.is_some() {
+                        entry.2 = human_id;
+                    }
+                }
+            }
+        }
+
+        let mut winners = HashMap::new();
+        for (speaker_index, candidates) in votes {
+            let total: i64 = candidates.values().map(|(ms, _, _)| *ms).sum();
+            if total < INTERVAL_ACTIVE_SPEAKER_MIN_MS {
+                continue;
+            }
+            if let Some((_, (best_ms, name, human_id))) =
+                candidates.into_iter().max_by_key(|(_, (ms, _, _))| *ms)
+                && (best_ms as f64) / (total as f64) >= INTERVAL_ACTIVE_SPEAKER_MIN_SHARE
+            {
+                winners.insert(
+                    speaker_index,
+                    ProvisionalSpeakerLabel {
+                        name,
+                        human_id,
+                        reason: SpeakerResolutionReason::MeetingActiveSpeaker,
+                    },
+                );
+            }
+        }
+        winners
+    }
+
     /// `transcript_starts` are the epoch-ms starts of every transcript in the render; a later one
     /// bounds a capture whose evidence never closed, so it cannot name the next recording.
     pub fn label_segments(
@@ -145,6 +268,8 @@ impl SpeakerContext {
         humans: &[RenderTranscriptHuman],
     ) -> Vec<RenderedTranscriptSegment> {
         let meetings = MeetingNames::new(&self.meetings, transcript_starts, &segments, started_at);
+        let diarized_active_speakers =
+            self.vote_diarized_active_speakers(&segments, started_at, self_human_id, humans);
         // Mic words per diarization voice per interval. Remote voices are not counted: diarization
         // indices restart with every stream refresh, so their number says nothing about how
         // many people are on the far end of a call.
@@ -176,12 +301,16 @@ impl SpeakerContext {
                 continue;
             }
 
-            let mut groups: Vec<(Option<usize>, MeetingLabel, Vec<SegmentWord>)> = Vec::new();
+            let mut groups: Vec<(
+                Option<usize>,
+                MeetingLabel,
+                Option<ProvisionalSpeakerLabel>,
+                Vec<SegmentWord>,
+            )> = Vec::new();
             for word in &segment.words {
-                let interval = self.interval_at(
-                    started_at.saturating_add(word.start_ms),
-                    started_at.saturating_add(word.end_ms),
-                );
+                let word_start = started_at.saturating_add(word.start_ms);
+                let word_end = started_at.saturating_add(word.end_ms);
+                let interval = self.interval_at(word_start, word_end);
                 let mut meeting = meetings.label(&segment.key, word);
                 // An observed group call only matters where a calendar guess could apply; keep it
                 // from splitting turns elsewhere.
@@ -189,17 +318,47 @@ impl SpeakerContext {
                     && interval.is_some_and(|index| {
                         self.intervals[index].active_call || self.intervals[index].calendar_call
                     });
-                if let Some((last_interval, last_meeting, words)) = groups.last_mut()
-                    && *last_interval == interval
+                let ax_active_speaker = if meeting.name.is_none()
+                    && is_unassigned_remote(&segment.key)
+                {
+                    if let Some(speaker_index) = segment.key.speaker_index {
+                        diarized_active_speakers.get(&speaker_index).cloned()
+                    } else {
+                        self.active_speaker_at(word_start, word_end, self_human_id, humans)
+                            .map(|(name, human_id)| ProvisionalSpeakerLabel {
+                                name,
+                                human_id,
+                                reason: SpeakerResolutionReason::MeetingActiveSpeaker,
+                            })
+                    }
+                } else {
+                    None
+                };
+                // When an Accessibility active speaker is resolved for a remote word, keep
+                // consecutive words by the same active speaker in one turn even across interval seams.
+                let group_interval = if ax_active_speaker.is_some() {
+                    None
+                } else {
+                    interval
+                };
+                if let Some((last_interval, last_meeting, last_ax_speaker, words)) =
+                    groups.last_mut()
+                    && *last_interval == group_interval
                     && *last_meeting == meeting
+                    && *last_ax_speaker == ax_active_speaker
                 {
                     words.push(word.clone());
                 } else {
-                    groups.push((interval, meeting, vec![word.clone()]));
+                    groups.push((
+                        group_interval,
+                        meeting,
+                        ax_active_speaker,
+                        vec![word.clone()],
+                    ));
                 }
             }
             let split = groups.len() > 1;
-            for (interval, meeting, words) in groups {
+            for (interval, meeting, ax_active_speaker, words) in groups {
                 let mut part = RenderedTranscriptSegment {
                     id: segment.id.clone(),
                     key: segment.key.clone(),
@@ -229,7 +388,7 @@ impl SpeakerContext {
                         humans,
                     )
                 });
-                part.provisional_speaker = meeting.resolve(inferred);
+                part.provisional_speaker = meeting.resolve(ax_active_speaker.or(inferred));
                 if let Some(label) = &part.provisional_speaker {
                     part.speaker_label = label.name.clone();
                 }

@@ -200,9 +200,10 @@ export async function syncActiveMeetingMetadata({
     }
   }
 
-  const detectedNames = activeInspections.flatMap(
-    (inspection) => inspection.participants ?? [],
-  );
+  const detectedNames = activeInspections.flatMap((inspection) => [
+    ...(inspection.participants ?? []),
+    ...(inspection.activeSpeaker ? [inspection.activeSpeaker] : []),
+  ]);
   const newNames = filterNewParticipantNames({
     detectedNames,
     selfNames,

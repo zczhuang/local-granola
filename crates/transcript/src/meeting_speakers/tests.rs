@@ -1026,6 +1026,7 @@ fn an_observed_group_call_overrides_the_calendars_sole_invitee() {
             human_id: "dana-person".into(),
             name: "Dana Park".into(),
         }],
+        active_speaker: None,
     };
     let transcript = || RenderTranscriptInput {
         started_at: Some(T0),

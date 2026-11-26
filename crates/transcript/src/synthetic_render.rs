@@ -571,6 +571,7 @@ mod tests {
                             human_id: human_id.into(),
                             name: name.into(),
                         }],
+                        active_speaker: None,
                     },
                 )
                 .into(),
